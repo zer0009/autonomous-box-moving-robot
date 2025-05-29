@@ -19,14 +19,16 @@ import math
 
 class RobotMasterController:
     def __init__(self):
-        # UART connections to ESP32 controllers
-        self.nav_uart = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
-        self.arm_uart = serial.Serial('/dev/ttyAMA1', 115200, timeout=1)
+        # UART connections to ESP32 controllers with retry mechanism
+        self.nav_uart = None
+        self.arm_uart = None
         
-        # Camera setup
-        self.camera = cv2.VideoCapture(0)
-        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        # Try to establish UART connections
+        self.connect_uart_devices()
+        
+        # Camera setup with fallback options
+        self.camera = None
+        self.setup_camera()
         
         # Database setup
         self.init_database()
@@ -53,11 +55,68 @@ class RobotMasterController:
         self.nav_response_queue = queue.Queue()
         self.arm_response_queue = queue.Queue()
         
-        # Start communication threads
-        self.start_communication_threads()
-        
-        print("Robot Master Controller Initialized")
+        # Start communication threads if connections established
+        if self.nav_uart and self.arm_uart:
+            self.start_communication_threads()
+            print("Robot Master Controller Initialized")
+        else:
+            print("Robot partially initialized - some hardware not connected")
     
+    def connect_uart_devices(self):
+        """Attempt to connect to ESP32 controllers via UART with retry"""
+        # Navigation controller connection
+        uart_ports = ['/dev/ttyAMA0', '/dev/ttyUSB0', '/dev/ttyUSB1', 'COM3', 'COM4']
+        
+        # Try to connect to navigation controller
+        for port in uart_ports:
+            try:
+                print(f"Trying navigation controller on {port}...")
+                self.nav_uart = serial.Serial(port, 115200, timeout=1)
+                print(f"Connected to navigation controller on {port}")
+                break
+            except Exception as e:
+                print(f"Failed to connect to {port}: {e}")
+        
+        # Try to connect to arm controller
+        arm_ports = [p for p in uart_ports if p != (self.nav_uart.port if self.nav_uart else None)]
+        for port in arm_ports:
+            try:
+                print(f"Trying arm controller on {port}...")
+                self.arm_uart = serial.Serial(port, 115200, timeout=1)
+                print(f"Connected to arm controller on {port}")
+                break
+            except Exception as e:
+                print(f"Failed to connect to {port}: {e}")
+        
+        # Check if both connections established
+        if not self.nav_uart:
+            print("WARNING: Navigation controller not connected!")
+        if not self.arm_uart:
+            print("WARNING: Arm controller not connected!")
+    
+    def setup_camera(self):
+        """Setup camera with fallback options for USB cameras"""
+        # Try different camera indices
+        for camera_index in [0, 1, 2]:
+            try:
+                print(f"Trying camera at index {camera_index}...")
+                camera = cv2.VideoCapture(camera_index)
+                if camera.isOpened():
+                    ret, test_frame = camera.read()
+                    if ret:
+                        self.camera = camera
+                        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        print(f"Connected to camera at index {camera_index}")
+                        break
+                    else:
+                        camera.release()
+            except Exception as e:
+                print(f"Error with camera at index {camera_index}: {e}")
+        
+        if not self.camera:
+            print("WARNING: No camera connected! QR code functionality disabled.")
+            
     def init_database(self):
         """Initialize SQLite database for tracking boxes and tasks"""
         self.db = sqlite3.connect('robot_tasks.db', check_same_thread=False)
@@ -100,35 +159,54 @@ class RobotMasterController:
     
     def start_communication_threads(self):
         """Start threads for UART communication"""
-        nav_thread = threading.Thread(target=self.nav_communication_handler, daemon=True)
-        arm_thread = threading.Thread(target=self.arm_communication_handler, daemon=True)
-        nav_thread.start()
-        arm_thread.start()
+        if self.nav_uart:
+            nav_thread = threading.Thread(target=self.nav_communication_handler, daemon=True)
+            nav_thread.start()
+            
+        if self.arm_uart:
+            arm_thread = threading.Thread(target=self.arm_communication_handler, daemon=True)
+            arm_thread.start()
     
     def nav_communication_handler(self):
         """Handle navigation ESP32 communication"""
         while True:
             try:
-                if self.nav_uart.in_waiting:
+                if self.nav_uart and self.nav_uart.in_waiting:
                     response = self.nav_uart.readline().decode().strip()
                     self.nav_response_queue.put(response)
             except Exception as e:
                 print(f"Nav UART error: {e}")
+                # Try to reconnect
+                try:
+                    self.nav_uart.close()
+                    self.connect_uart_devices()
+                except:
+                    pass
             time.sleep(0.01)
     
     def arm_communication_handler(self):
         """Handle arm ESP32 communication"""
         while True:
             try:
-                if self.arm_uart.in_waiting:
+                if self.arm_uart and self.arm_uart.in_waiting:
                     response = self.arm_uart.readline().decode().strip()
                     self.arm_response_queue.put(response)
             except Exception as e:
                 print(f"Arm UART error: {e}")
+                # Try to reconnect
+                try:
+                    self.arm_uart.close()
+                    self.connect_uart_devices()
+                except:
+                    pass
             time.sleep(0.01)
     
     def send_nav_command(self, action, param1="", param2="", timeout=10):
         """Send command to navigation ESP32"""
+        if not self.nav_uart:
+            print("Navigation controller not connected!")
+            return "ERROR:NOT_CONNECTED"
+            
         command = f"NAV:{action}:{param1}:{param2}\n"
         self.nav_uart.write(command.encode())
         
@@ -144,6 +222,10 @@ class RobotMasterController:
     
     def send_arm_command(self, action, param1="", param2="", timeout=15):
         """Send command to arm ESP32"""
+        if not self.arm_uart:
+            print("Arm controller not connected!")
+            return "ERROR:NOT_CONNECTED"
+            
         command = f"ARM:{action}:{param1}:{param2}\n"
         self.arm_uart.write(command.encode())
         
@@ -159,6 +241,9 @@ class RobotMasterController:
     
     def scan_qr_codes(self):
         """Scan for QR codes in camera view"""
+        if not self.camera:
+            return []
+            
         ret, frame = self.camera.read()
         if not ret:
             return []
@@ -348,7 +433,24 @@ class RobotMasterController:
                 return (x - 1, y)
             elif self.current_orientation == 270:
                 return (x, y - 1)
-        # Add LEFT and RIGHT calculations similarly
+        elif direction == "LEFT":
+            if self.current_orientation == 0:
+                return (x, y + 1)
+            elif self.current_orientation == 90:
+                return (x - 1, y)
+            elif self.current_orientation == 180:
+                return (x, y - 1)
+            elif self.current_orientation == 270:
+                return (x + 1, y)
+        elif direction == "RIGHT":
+            if self.current_orientation == 0:
+                return (x, y - 1)
+            elif self.current_orientation == 90:
+                return (x + 1, y)
+            elif self.current_orientation == 180:
+                return (x, y + 1)
+            elif self.current_orientation == 270:
+                return (x - 1, y)
         
         return None
     
@@ -475,21 +577,53 @@ class RobotMasterController:
         """Main robot operation loop"""
         print("Starting main robot loop...")
         
+        # Check if we're in simulation mode (missing hardware)
+        simulation_mode = not all([self.nav_uart, self.arm_uart, self.camera])
+        if simulation_mode:
+            print("WARNING: Running in simulation mode with limited functionality")
+        
         while True:
             try:
                 if self.robot_busy:
                     time.sleep(1)
                     continue
                 
-                # Scan for QR codes
-                qr_codes = self.scan_qr_codes()
+                # Scan for QR codes if camera is available
+                qr_codes = []
+                if self.camera:
+                    qr_codes = self.scan_qr_codes()
+                elif simulation_mode and not self.robot_busy:
+                    # In simulation mode, we can simulate finding a QR code
+                    user_input = input("\nSimulation mode: Enter 'box' to simulate box detection, "
+                                       "'floor' for floor marker, or Enter to continue: ")
+                    if user_input.lower() == 'box':
+                        print("Simulating box QR code detection...")
+                        qr_codes = [{
+                            'data': 'BOX_SIM123_SHELF_A_WEIGHT_2.0',
+                            'position': (320, 240),
+                            'type': 'box'
+                        }]
+                    elif user_input.lower() == 'floor':
+                        print("Simulating floor marker detection...")
+                        qr_codes = [{
+                            'data': 'FLOOR_X5_Y10',
+                            'position': (320, 240),
+                            'type': 'floor_marker'
+                        }]
                 
                 for qr in qr_codes:
                     if qr['type'] == 'box':
                         print(f"Found box QR: {qr['data']}")
                         self.robot_busy = True
                         
-                        success = self.process_box_task(qr['data'])
+                        # Process the box task, handling hardware limitations
+                        if simulation_mode:
+                            print("Simulation: Processing box task...")
+                            time.sleep(2)  # Simulate processing time
+                            success = True
+                            self.log_event("SIMULATION", f"Simulated box handling for {qr['data']}")
+                        else:
+                            success = self.process_box_task(qr['data'])
                         
                         if success:
                             print("Task completed successfully")
@@ -498,7 +632,12 @@ class RobotMasterController:
                         
                         # Return to home position
                         home_pos = self.shelf_positions['HOME']
-                        self.navigate_to_position(home_pos)
+                        if simulation_mode:
+                            print(f"Simulation: Returning to home position {home_pos}")
+                            self.current_position = home_pos  # Just update position in simulation
+                            time.sleep(2)  # Simulate movement time
+                        else:
+                            self.navigate_to_position(home_pos)
                         
                         self.robot_busy = False
                         break
@@ -506,6 +645,14 @@ class RobotMasterController:
                     elif qr['type'] == 'floor_marker':
                         # Update position based on floor marker
                         self.update_position_from_qr(qr['data'])
+                
+                # Status update in simulation mode
+                if simulation_mode and not self.robot_busy and time.time() % 30 < 0.5:
+                    status = self.get_status_report()
+                    print("\nRobot Status:")
+                    print(f"Position: {status['current_position']}")
+                    print(f"Orientation: {status['current_orientation']}°")
+                    print(f"Pending/Completed Tasks: {status['pending_tasks']}/{status['completed_tasks']}")
                 
                 time.sleep(0.5)  # Main loop delay
                 
@@ -565,20 +712,68 @@ class RobotMasterController:
         }
         
         return status
+    
+    def shutdown(self):
+        """Properly shutdown all robot systems"""
+        print("Shutting down robot systems...")
+        
+        # Stop all movement
+        if self.nav_uart:
+            try:
+                self.send_nav_command("STOP")
+                self.nav_uart.close()
+                print("Navigation controller disconnected")
+            except Exception as e:
+                print(f"Error closing navigation connection: {e}")
+        
+        if self.arm_uart:
+            try:
+                self.send_arm_command("STOP")
+                self.arm_uart.close()
+                print("Arm controller disconnected")
+            except Exception as e:
+                print(f"Error closing arm connection: {e}")
+        
+        # Release camera
+        if self.camera:
+            try:
+                self.camera.release()
+                print("Camera released")
+            except Exception as e:
+                print(f"Error closing camera: {e}")
+        
+        # Close database
+        try:
+            self.db.close()
+            print("Database closed")
+        except Exception as e:
+            print(f"Error closing database: {e}")
 
 if __name__ == "__main__":
+    robot = None
     try:
         robot = RobotMasterController()
+        
+        # Check if essential components are connected
+        if not robot.camera:
+            print("WARNING: Running without camera - QR code detection disabled")
+            
+        if not robot.nav_uart or not robot.arm_uart:
+            print("WARNING: Running with limited functionality")
+            user_input = input("Do you want to continue anyway? (y/n): ")
+            if user_input.lower() != 'y':
+                print("Exiting by user request")
+                robot.shutdown()
+                exit(0)
         
         # Start main operation loop
         robot.main_loop()
         
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received, shutting down...")
     except Exception as e:
         print(f"Failed to start robot: {e}")
     finally:
         # Cleanup
-        if 'robot' in locals():
-            robot.camera.release()
-            robot.nav_uart.close()
-            robot.arm_uart.close()
-            robot.db.close()
+        if robot:
+            robot.shutdown()
