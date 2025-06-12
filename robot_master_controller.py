@@ -140,7 +140,8 @@ class RobotMasterController:
             print("Skipping camera setup in simulation mode (SKIP_CAMERA=1)")
             return
             
-        # Try different camera indices
+        # Try different camera indices - expanded range to include higher indices
+        # First check standard indices 0-2
         for camera_index in [0, 1, 2]:
             try:
                 print(f"Trying camera at index {camera_index}...")
@@ -153,7 +154,7 @@ class RobotMasterController:
                         self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                         print(f"Connected to camera at index {camera_index}")
                         print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
-                        break
+                        return
                     else:
                         print(f"Camera at index {camera_index} opened but couldn't read frame")
                         camera.release()
@@ -161,6 +162,52 @@ class RobotMasterController:
                     print(f"Failed to open camera at index {camera_index}")
             except Exception as e:
                 print(f"Error with camera at index {camera_index}: {e}")
+        
+        # If standard indices failed, try higher indices (19-35) that appear on some systems
+        for camera_index in range(19, 36):
+            try:
+                print(f"Trying camera at higher index {camera_index}...")
+                camera = cv2.VideoCapture(camera_index)
+                if camera.isOpened():
+                    ret, test_frame = camera.read()
+                    if ret and test_frame is not None:
+                        self.camera = camera
+                        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        print(f"Connected to camera at index {camera_index}")
+                        print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                        return
+                    else:
+                        print(f"Camera at index {camera_index} opened but couldn't read frame")
+                        camera.release()
+                else:
+                    print(f"Failed to open camera at index {camera_index}")
+            except Exception as e:
+                print(f"Error with camera at index {camera_index}: {e}")
+        
+        # Try direct device path for video devices
+        for device_id in range(19, 36):
+            device_path = f"/dev/video{device_id}"
+            try:
+                if os.path.exists(device_path):
+                    print(f"Trying camera at device path {device_path}...")
+                    camera = cv2.VideoCapture(device_path)
+                    if camera.isOpened():
+                        ret, test_frame = camera.read()
+                        if ret and test_frame is not None:
+                            self.camera = camera
+                            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                            print(f"Connected to camera at device path {device_path}")
+                            print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                            return
+                        else:
+                            print(f"Camera at device path {device_path} opened but couldn't read frame")
+                            camera.release()
+                    else:
+                        print(f"Failed to open camera at device path {device_path}")
+            except Exception as e:
+                print(f"Error with camera at device path {device_path}: {e}")
         
         # Try Raspberry Pi camera module if available
         if not self.camera:
@@ -198,6 +245,7 @@ class RobotMasterController:
                 print("Check camera connections and permissions.")
                 print("On Raspberry Pi, ensure the camera is enabled with 'sudo raspi-config'")
                 print("Check permissions with 'ls -l /dev/video*'")
+                print("Available video devices: " + ", ".join([f"/dev/video{i}" for i in range(19, 36) if os.path.exists(f"/dev/video{i}")]))
                 
     def init_database(self):
         """Initialize SQLite database for tracking boxes and tasks"""
