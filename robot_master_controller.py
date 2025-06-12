@@ -536,15 +536,31 @@ class RobotMasterController:
         if len(parts) >= 6:
             box_id = parts[1]
             destination = f"SHELF_{parts[3]}"
-            section = f"{parts[3]}{parts[5]}" if len(parts) > 5 else f"{parts[3]}1"  # Default to section 1
-            weight = float(parts[7]) if len(parts) > 7 else 1.0
+            section = parts[5]  # This is just the section number (e.g., "A3")
+            
+            # Make sure weight is parsed correctly
+            weight = 1.0  # Default weight
+            if len(parts) > 7 and parts[6] == "WEIGHT":
+                try:
+                    weight = float(parts[7])
+                except ValueError:
+                    print(f"Warning: Could not convert weight '{parts[7]}' to float, using default 1.0")
+                
             return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
         elif len(parts) >= 4:
             # Handle legacy format
             box_id = parts[1]
             destination = f"SHELF_{parts[3]}"
             section = f"{parts[3]}1"  # Default to section 1
-            weight = float(parts[5]) if len(parts) > 5 else 1.0
+            
+            # Make sure weight is parsed correctly
+            weight = 1.0  # Default weight
+            if len(parts) > 5 and parts[4] == "WEIGHT":
+                try:
+                    weight = float(parts[5])
+                except ValueError:
+                    print(f"Warning: Could not convert weight '{parts[5]}' to float, using default 1.0")
+                
             return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
         return None
     
@@ -1041,7 +1057,7 @@ class RobotMasterController:
                         section = f"{shelf}{random.randint(1, 3)}"
                         weight = round(random.uniform(0.5, 3.0), 1)
                         
-                        # Create simulated QR data
+                        # Create simulated QR data with correct format
                         qr_data = f"BOX_{box_id}_SHELF_{shelf}_SECTION_{section}_WEIGHT_{weight}"
                         
                         # Log the simulated find
