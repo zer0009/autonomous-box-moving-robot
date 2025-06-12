@@ -61,11 +61,24 @@ def index():
     try:
         conn = get_db_connection()
         
+        # Check if created_time column exists
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(boxes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        has_created_time = 'created_time' in columns
+        
         # Get pending tasks
-        pending_tasks = conn.execute('''
-            SELECT * FROM boxes WHERE status != 'delivered'
-            ORDER BY created_time DESC
-        ''').fetchall()
+        if has_created_time:
+            pending_tasks = conn.execute('''
+                SELECT * FROM boxes WHERE status != 'delivered'
+                ORDER BY created_time DESC
+            ''').fetchall()
+        else:
+            # Fallback if created_time doesn't exist
+            pending_tasks = conn.execute('''
+                SELECT * FROM boxes WHERE status != 'delivered'
+                ORDER BY pickup_time DESC
+            ''').fetchall()
         
         # Get recent completed tasks
         completed_tasks = conn.execute('''
@@ -95,10 +108,41 @@ def qr_codes():
     """QR code management page"""
     try:
         conn = get_db_connection()
-        qr_codes = conn.execute('''
-            SELECT * FROM qr_codes
-            ORDER BY created_time DESC
-        ''').fetchall()
+        
+        # Check if qr_codes table exists
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='qr_codes'")
+        table_exists = cursor.fetchone() is not None
+        
+        if table_exists:
+            # Check if created_time column exists
+            cursor.execute("PRAGMA table_info(qr_codes)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_created_time = 'created_time' in columns
+            
+            if has_created_time:
+                qr_codes = conn.execute('''
+                    SELECT * FROM qr_codes
+                    ORDER BY created_time DESC
+                ''').fetchall()
+            else:
+                qr_codes = conn.execute('''
+                    SELECT * FROM qr_codes
+                ''').fetchall()
+        else:
+            # Create the table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS qr_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code_type TEXT,
+                    content TEXT,
+                    filename TEXT,
+                    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            qr_codes = []
+            
         conn.close()
         
         return render_template('qr_codes.html', qr_codes=qr_codes)
@@ -198,14 +242,27 @@ def api_tasks():
         status = request.args.get('status', 'all')
         limit = request.args.get('limit', 20, type=int)
         
+        # Check if created_time column exists
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(boxes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        has_created_time = 'created_time' in columns
+        
         if status == 'pending':
-            query = '''SELECT * FROM boxes WHERE status != 'delivered' 
-                      ORDER BY created_time DESC LIMIT ?'''
+            if has_created_time:
+                query = '''SELECT * FROM boxes WHERE status != 'delivered' 
+                          ORDER BY created_time DESC LIMIT ?'''
+            else:
+                query = '''SELECT * FROM boxes WHERE status != 'delivered' 
+                          ORDER BY pickup_time DESC LIMIT ?'''
         elif status == 'completed':
             query = '''SELECT * FROM boxes WHERE status = 'delivered' 
                       ORDER BY delivery_time DESC LIMIT ?'''
         else:
-            query = '''SELECT * FROM boxes ORDER BY created_time DESC LIMIT ?'''
+            if has_created_time:
+                query = '''SELECT * FROM boxes ORDER BY created_time DESC LIMIT ?'''
+            else:
+                query = '''SELECT * FROM boxes ORDER BY pickup_time DESC LIMIT ?'''
             
         tasks = conn.execute(query, (limit,)).fetchall()
         conn.close()
@@ -220,7 +277,8 @@ def api_tasks():
             "stack_position": row['stack_position'] if 'stack_position' in row.keys() else 0,
             "pickup_time": row['pickup_time'],
             "delivery_time": row['delivery_time'],
-            "weight": row['weight']
+            "weight": row['weight'],
+            "created_time": row['created_time'] if has_created_time and 'created_time' in row.keys() else None
         } for row in tasks]
         
         return jsonify({"tasks": tasks_list})
@@ -1218,6 +1276,20 @@ def init_database():
             success INTEGER DEFAULT 1
         )
     ''')
+    
+    # Check if created_time column exists in boxes table, add it if not
+    cursor.execute("PRAGMA table_info(boxes)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'created_time' not in columns:
+        try:
+            cursor.execute('ALTER TABLE boxes ADD COLUMN created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+            logger.info("Added missing created_time column to boxes table")
+            
+            # Update existing rows with current timestamp
+            cursor.execute('UPDATE boxes SET created_time = CURRENT_TIMESTAMP WHERE created_time IS NULL')
+            logger.info("Updated existing rows with timestamp")
+        except Exception as e:
+            logger.error(f"Error adding created_time column: {e}")
     
     conn.commit()
     conn.close()
