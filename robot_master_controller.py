@@ -17,6 +17,7 @@ from datetime import datetime
 import heapq
 import math
 import random
+import os
 
 class RobotMasterController:
     def __init__(self, simulation_mode=False):
@@ -36,9 +37,6 @@ class RobotMasterController:
         # Camera setup with fallback options
         self.camera = None
         self.setup_camera()
-        
-        # Database setup
-        self.init_database()
         
         # Robot state
         self.current_position = (0, 0)  # Grid coordinates
@@ -90,6 +88,9 @@ class RobotMasterController:
         self.nav_response_queue = queue.Queue()
         self.arm_response_queue = queue.Queue()
         
+        # Database setup
+        self.init_database()
+        
         # Start communication threads if connections established
         if (self.nav_uart and self.arm_uart) or self.simulation_mode:
             if self.simulation_mode:
@@ -134,6 +135,11 @@ class RobotMasterController:
     
     def setup_camera(self):
         """Setup camera with fallback options for USB cameras"""
+        # Skip camera setup in simulation mode if requested
+        if self.simulation_mode and os.environ.get('SKIP_CAMERA', '0') == '1':
+            print("Skipping camera setup in simulation mode (SKIP_CAMERA=1)")
+            return
+            
         # Try different camera indices
         for camera_index in [0, 1, 2]:
             try:
@@ -141,20 +147,58 @@ class RobotMasterController:
                 camera = cv2.VideoCapture(camera_index)
                 if camera.isOpened():
                     ret, test_frame = camera.read()
-                    if ret:
+                    if ret and test_frame is not None:
                         self.camera = camera
                         self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                         self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                         print(f"Connected to camera at index {camera_index}")
+                        print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
                         break
                     else:
+                        print(f"Camera at index {camera_index} opened but couldn't read frame")
                         camera.release()
+                else:
+                    print(f"Failed to open camera at index {camera_index}")
             except Exception as e:
                 print(f"Error with camera at index {camera_index}: {e}")
         
+        # Try Raspberry Pi camera module if available
+        if not self.camera:
+            try:
+                print("Trying Raspberry Pi camera module...")
+                # Special case for Raspberry Pi camera
+                gst_str = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=(int)640, height=(int)480, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=0 ! video/x-raw, width=(int)640, height=(int)480, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink"
+                camera = cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
+                
+                if not camera.isOpened():
+                    # Try another common Raspberry Pi camera pipeline
+                    print("Trying alternative Raspberry Pi camera pipeline...")
+                    camera.release()
+                    camera = cv2.VideoCapture("v4l2src device=/dev/video0 ! video/x-raw, width=640, height=480 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
+                
+                if camera.isOpened():
+                    ret, test_frame = camera.read()
+                    if ret and test_frame is not None:
+                        self.camera = camera
+                        print("Connected to Raspberry Pi camera module")
+                        print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                    else:
+                        print("Raspberry Pi camera opened but couldn't read frame")
+                        camera.release()
+                else:
+                    print("Failed to open Raspberry Pi camera module")
+            except Exception as e:
+                print(f"Error with Raspberry Pi camera: {e}")
+        
         if not self.camera:
             print("WARNING: No camera connected! QR code functionality disabled.")
-            
+            if self.simulation_mode:
+                print("In simulation mode, QR codes will be simulated.")
+            else:
+                print("Check camera connections and permissions.")
+                print("On Raspberry Pi, ensure the camera is enabled with 'sudo raspi-config'")
+                print("Check permissions with 'ls -l /dev/video*'")
+                
     def init_database(self):
         """Initialize SQLite database for tracking boxes and tasks"""
         self.db = sqlite3.connect('robot_tasks.db', check_same_thread=False)
@@ -437,29 +481,42 @@ class RobotMasterController:
     def scan_qr_codes(self):
         """Scan for QR codes in camera view"""
         if not self.camera:
+            # In simulation mode, occasionally return simulated QR codes
+            if self.simulation_mode and random.random() < 0.05:  # 5% chance
+                simulated_qr = {
+                    'data': f"BOX_SIM{random.randint(1000, 9999)}_SHELF_A_SECTION_A1_WEIGHT_1.5",
+                    'position': (320, 240),
+                    'type': 'box'
+                }
+                return [simulated_qr]
             return []
             
-        ret, frame = self.camera.read()
-        if not ret:
-            return []
-        
-        # Decode QR codes
-        qr_codes = pyzbar.decode(frame)
-        detected_codes = []
-        
-        for qr in qr_codes:
-            data = qr.data.decode('utf-8')
-            # Get QR code center position in image
-            x = qr.rect.left + qr.rect.width // 2
-            y = qr.rect.top + qr.rect.height // 2
+        try:
+            ret, frame = self.camera.read()
+            if not ret or frame is None:
+                print("Failed to read frame from camera")
+                return []
             
-            detected_codes.append({
-                'data': data,
-                'position': (x, y),
-                'type': self.classify_qr_code(data)
-            })
-        
-        return detected_codes
+            # Decode QR codes
+            qr_codes = pyzbar.decode(frame)
+            detected_codes = []
+            
+            for qr in qr_codes:
+                data = qr.data.decode('utf-8')
+                # Get QR code center position in image
+                x = qr.rect.left + qr.rect.width // 2
+                y = qr.rect.top + qr.rect.height // 2
+                
+                detected_codes.append({
+                    'data': data,
+                    'position': (x, y),
+                    'type': self.classify_qr_code(data)
+                })
+            
+            return detected_codes
+        except Exception as e:
+            print(f"Error scanning QR codes: {e}")
+            return []
     
     def classify_qr_code(self, data):
         """Classify QR code type based on data"""

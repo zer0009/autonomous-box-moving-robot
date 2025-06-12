@@ -13,14 +13,18 @@ import argparse
 import signal
 import atexit
 
-def start_robot_controller(simulation=True):
+def start_robot_controller(simulation=True, skip_camera=False):
     """Start the robot master controller in a separate process"""
     cmd = [sys.executable, "robot_master_controller.py"]
     if simulation:
         cmd.append("--simulation")
     
+    env = os.environ.copy()
+    if skip_camera:
+        env["SKIP_CAMERA"] = "1"
+    
     print(f"Starting robot controller: {' '.join(cmd)}")
-    return subprocess.Popen(cmd)
+    return subprocess.Popen(cmd, env=env)
 
 def start_web_server():
     """Start the web server in a separate process"""
@@ -45,9 +49,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Start the robot system')
     parser.add_argument('--no-simulation', action='store_true', 
                         help='Run with real hardware (default: simulation mode)')
+    parser.add_argument('--skip-camera', action='store_true',
+                        help='Skip camera detection (useful for headless operation)')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
+    skip_camera = args.skip_camera
     
     processes = []
     
@@ -56,7 +63,7 @@ if __name__ == "__main__":
         atexit.register(cleanup_processes, processes)
         
         # Start robot controller
-        controller_process = start_robot_controller(simulation=simulation_mode)
+        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera)
         processes.append(controller_process)
         
         # Give the controller a moment to initialize
