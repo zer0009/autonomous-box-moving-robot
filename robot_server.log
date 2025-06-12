@@ -1,0 +1,175 @@
+2025-06-12 23:43:01,822 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.111:5000
+2025-06-12 23:43:01,823 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-06-12 23:43:17,891 - __main__ - ERROR - Error in index route: no such table: robot_log
+2025-06-12 23:43:17,898 - werkzeug - INFO - 192.168.1.111 - - [12/Jun/2025 23:43:17] "GET / HTTP/1.1" 200 -
+2025-06-12 23:43:18,461 - werkzeug - INFO - 192.168.1.111 - - [12/Jun/2025 23:43:18] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-06-12 23:43:20,096 - __main__ - ERROR - Error in index route: no such table: robot_log
+2025-06-12 23:43:20,098 - werkzeug - INFO - 192.168.1.111 - - [12/Jun/2025 23:43:20] "GET / HTTP/1.1" 200 -
+2025-06-12 23:45:50,502 - __main__ - ERROR - Error in index route: no such table: robot_log
+2025-06-12 23:45:50,503 - werkzeug - INFO - 192.168.1.111 - - [12/Jun/2025 23:45:50] "GET / HTTP/1.1" 200 -
+2025-06-12 23:46:15,263 - __main__ - INFO - Database initialized with required tables
+2025-06-12 23:46:15,325 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.111:5000
+2025-06-12 23:46:15,327 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-06-12 23:46:20,827 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:20] "GET / HTTP/1.1" 200 -
+2025-06-12 23:46:21,604 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:21] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-06-12 23:46:39,402 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:39] "GET /control HTTP/1.1" 200 -
+2025-06-12 23:46:39,610 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:39] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:46:42,583 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:42] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:46:42,994 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:42] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:46:44,120 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:44] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:46:45,582 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:45] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:46:48,517 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:48] "GET /qr_codes HTTP/1.1" 200 -
+2025-06-12 23:46:48,665 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:48] "[33mGET /qr/shelf_section_shelf_c_section_c2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:48,735 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:48] "[33mGET /qr/shelf_section_shelf_c_section_c3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:48,937 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:48] "[33mGET /qr/floor_marker_floor_0_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,008 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_1_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,060 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_2_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,091 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_3_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,139 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_4_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,170 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_0_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,197 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_1_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,231 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_2_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,258 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_3_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,316 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/floor_marker_floor_4_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,341 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id7613d5.png HTTP/1.1" 200 -
+2025-06-12 23:46:49,350 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_a_section_a1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,366 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_a_section_a2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,376 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id9c99e3.png HTTP/1.1" 200 -
+2025-06-12 23:46:49,401 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_a_section_a3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,406 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_b_section_b1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,411 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_b_section_b2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,421 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id1d23a4.png HTTP/1.1" 200 -
+2025-06-12 23:46:49,424 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id51004f.png HTTP/1.1" 200 -
+2025-06-12 23:46:49,430 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id574e6d.png HTTP/1.1" 200 -
+2025-06-12 23:46:49,471 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_b_section_b3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,525 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "[33mGET /qr/shelf_section_shelf_c_section_c1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:46:49,534 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:46:49] "GET /qr/box_id12470b.png HTTP/1.1" 200 -
+2025-06-12 23:47:09,916 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:47:09] "GET / HTTP/1.1" 200 -
+2025-06-12 23:47:40,575 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:47:40] "GET / HTTP/1.1" 200 -
+2025-06-12 23:48:11,563 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:11] "GET / HTTP/1.1" 200 -
+2025-06-12 23:48:29,861 - __main__ - INFO - Database initialized with required tables
+2025-06-12 23:48:29,896 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.111:5000
+2025-06-12 23:48:29,896 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-06-12 23:48:35,630 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:35] "GET / HTTP/1.1" 200 -
+2025-06-12 23:48:44,272 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:44] "GET /control HTTP/1.1" 200 -
+2025-06-12 23:48:44,412 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:44] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:48:45,022 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "GET /qr_codes HTTP/1.1" 200 -
+2025-06-12 23:48:45,109 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_c_section_c2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,132 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_c_section_c3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,157 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id9c99e3.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:45,168 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id1d23a4.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:45,178 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id7613d5.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:45,304 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id574e6d.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:45,318 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id51004f.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:45,325 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_0_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,329 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_1_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,339 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_2_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,447 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_3_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,450 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_4_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,475 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_0_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,542 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_2_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,545 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_1_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,553 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_3_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,558 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/floor_marker_floor_4_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,563 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_a_section_a1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,568 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_a_section_a2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,586 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_a_section_a3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,601 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_b_section_b1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,618 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_b_section_b2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,627 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_b_section_b3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,648 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[33mGET /qr/shelf_section_shelf_c_section_c1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:48:45,655 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:45] "[36mGET /qr/box_id12470b.png HTTP/1.1[0m" 304 -
+2025-06-12 23:48:52,840 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:48:52] "GET / HTTP/1.1" 200 -
+2025-06-12 23:49:23,609 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:49:23] "GET / HTTP/1.1" 200 -
+2025-06-12 23:49:54,582 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:49:54] "GET / HTTP/1.1" 200 -
+2025-06-12 23:50:06,777 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:06] "GET /control HTTP/1.1" 200 -
+2025-06-12 23:50:06,860 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:06] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:50:09,358 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:09] "GET / HTTP/1.1" 200 -
+2025-06-12 23:50:39,474 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:39] "GET / HTTP/1.1" 200 -
+2025-06-12 23:50:42,171 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "GET /qr_codes HTTP/1.1" 200 -
+2025-06-12 23:50:42,249 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_c_section_c2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,258 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_c_section_c3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,281 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id7613d5.png HTTP/1.1[0m" 304 -
+2025-06-12 23:50:42,322 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id9c99e3.png HTTP/1.1[0m" 304 -
+2025-06-12 23:50:42,339 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id1d23a4.png HTTP/1.1[0m" 304 -
+2025-06-12 23:50:42,360 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id574e6d.png HTTP/1.1[0m" 304 -
+2025-06-12 23:50:42,376 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id51004f.png HTTP/1.1[0m" 304 -
+2025-06-12 23:50:42,391 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_0_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,405 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_1_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,411 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_2_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,443 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_3_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,528 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_4_0.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,534 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_0_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,543 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_2_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,545 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_1_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,581 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_3_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,593 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/floor_marker_floor_4_1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,612 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_a_section_a1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,625 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_a_section_a2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,645 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_a_section_a3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,653 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_b_section_b1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,658 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_b_section_b2.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,675 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_b_section_b3.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,686 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[33mGET /qr/shelf_section_shelf_c_section_c1.png HTTP/1.1[0m" 404 -
+2025-06-12 23:50:42,698 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:50:42] "[36mGET /qr/box_id12470b.png HTTP/1.1[0m" 304 -
+2025-06-12 23:51:37,042 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:37] "GET / HTTP/1.1" 200 -
+2025-06-12 23:51:42,876 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:42] "GET /control HTTP/1.1" 200 -
+2025-06-12 23:51:42,969 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:42] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:51:45,614 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:45] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:51:45,973 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:45] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:51:46,484 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:46] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:51:47,018 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:47] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:51:48,961 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:48] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:51:50,735 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:50] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:51:51,963 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:51] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:51:54,876 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:54] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:51:54,958 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:54] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:51:57,976 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:51:57] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:00,601 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:00] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:00,972 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:00] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:00,989 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:00] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:01,153 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:01] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:01,533 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:01] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:01,679 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:01] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:03,976 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:03] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:04,421 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:04] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:04,961 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:04] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:05,390 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:05] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:06,050 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:06,230 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:06,408 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:06,549 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:06,965 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:06,999 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:06] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:07,156 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:07] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:07,326 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:07] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:07,467 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:07] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:07,596 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:07] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:07,738 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:07] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:08,925 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:08] "POST /api/send_command HTTP/1.1" 200 -
+2025-06-12 23:52:09,973 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:09] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:12,963 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:12] "GET /api/status HTTP/1.1" 200 -
+2025-06-12 23:52:14,547 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:14] "GET / HTTP/1.1" 200 -
+2025-06-12 23:52:45,558 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:52:45] "GET / HTTP/1.1" 200 -
+2025-06-12 23:53:16,541 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:53:16] "GET / HTTP/1.1" 200 -
+2025-06-12 23:53:46,738 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:53:46] "GET / HTTP/1.1" 200 -
+2025-06-12 23:54:17,590 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:54:17] "GET / HTTP/1.1" 200 -
+2025-06-12 23:54:48,565 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:54:48] "GET / HTTP/1.1" 200 -
+2025-06-12 23:55:19,574 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:55:19] "GET / HTTP/1.1" 200 -
+2025-06-12 23:55:50,580 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:55:50] "GET / HTTP/1.1" 200 -
+2025-06-12 23:56:21,569 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:56:21] "GET / HTTP/1.1" 200 -
+2025-06-12 23:56:52,545 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:56:52] "GET / HTTP/1.1" 200 -
+2025-06-12 23:57:23,605 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:57:23] "GET / HTTP/1.1" 200 -
+2025-06-12 23:57:54,665 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:57:54] "GET / HTTP/1.1" 200 -
+2025-06-12 23:58:25,562 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:58:25] "GET / HTTP/1.1" 200 -
+2025-06-12 23:58:56,566 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:58:56] "GET / HTTP/1.1" 200 -
+2025-06-12 23:59:27,685 - werkzeug - INFO - 127.0.0.1 - - [12/Jun/2025 23:59:27] "GET / HTTP/1.1" 200 -

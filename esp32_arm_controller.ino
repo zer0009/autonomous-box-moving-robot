@@ -58,12 +58,13 @@ struct ServoPosition {
   int elbow;
   int wrist;
   int gripper;
+  int height_offset;  // For stacking boxes
 };
 
 // Predefined positions
-ServoPosition HOME_POSITION = {90, 45, 45, 90, GRIPPER_OPEN_ANGLE};
-ServoPosition TRANSPORT_POSITION = {90, 90, 90, 90, GRIPPER_CLOSE_ANGLE};
-ServoPosition PICKUP_READY = {90, 30, 120, 45, GRIPPER_OPEN_ANGLE};
+ServoPosition HOME_POSITION = {90, 45, 45, 90, GRIPPER_OPEN_ANGLE, 0};
+ServoPosition TRANSPORT_POSITION = {90, 90, 90, 90, GRIPPER_CLOSE_ANGLE, 0};
+ServoPosition PICKUP_READY = {90, 30, 120, 45, GRIPPER_OPEN_ANGLE, 0};
 
 // Current servo positions
 ServoPosition currentPosition;
@@ -129,10 +130,11 @@ void loop() {
 }
 
 void processCommand(String command) {
-  // Parse command format: ARM:ACTION:PARAM1:PARAM2
+  // Parse command format: ARM:ACTION:PARAM1:PARAM2:PARAM3
   int firstColon = command.indexOf(':');
   int secondColon = command.indexOf(':', firstColon + 1);
   int thirdColon = command.indexOf(':', secondColon + 1);
+  int fourthColon = command.indexOf(':', thirdColon + 1);
   
   if (firstColon == -1) return;
   
@@ -140,11 +142,17 @@ void processCommand(String command) {
   String action = command.substring(firstColon + 1, secondColon);
   String param1 = "";
   String param2 = "";
+  String param3 = "";
   
   if (secondColon != -1) {
     if (thirdColon != -1) {
       param1 = command.substring(secondColon + 1, thirdColon);
-      param2 = command.substring(thirdColon + 1);
+      if (fourthColon != -1) {
+        param2 = command.substring(thirdColon + 1, fourthColon);
+        param3 = command.substring(fourthColon + 1);
+      } else {
+        param2 = command.substring(thirdColon + 1);
+      }
     } else {
       param1 = command.substring(secondColon + 1);
     }
@@ -159,10 +167,20 @@ void processCommand(String command) {
       handleHome();
     }
     else if (action == "PICK") {
-      handlePick(param1.toInt(), param2.toInt());
+      // Parse height offset parameter if provided (for stacking boxes)
+      int heightOffset = 0;
+      if (param3.length() > 0) {
+        heightOffset = param3.toInt();
+      }
+      handlePick(param1.toInt(), param2.toInt(), heightOffset);
     }
     else if (action == "PLACE") {
-      handlePlace(param1.toInt(), param2.toInt());
+      // Parse height offset parameter if provided (for stacking boxes)
+      int heightOffset = 0;
+      if (param3.length() > 0) {
+        heightOffset = param3.toInt();
+      }
+      handlePlace(param1.toInt(), param2.toInt(), heightOffset);
     }
     else if (action == "TRANSPORT") {
       handleTransport();
@@ -171,7 +189,11 @@ void processCommand(String command) {
       handleGrip(param1);
     }
     else if (action == "MOVE") {
-      handleMove(param1.toInt(), param2.toInt());
+      int heightOffset = 0;
+      if (param3.length() > 0) {
+        heightOffset = param3.toInt();
+      }
+      handleMove(param1.toInt(), param2.toInt(), heightOffset);
     }
     else if (action == "STOP") {
       handleStop();
@@ -200,11 +222,12 @@ void handleHome() {
   }
 }
 
-void handlePick(int x, int y) {
-  Serial.println("ARM:EXECUTING_PICK:X" + String(x) + "_Y" + String(y));
+void handlePick(int x, int y, int height_offset) {
+  Serial.println("ARM:EXECUTING_PICK:X" + String(x) + "_Y" + String(y) + "_Z" + String(height_offset));
   
   // Calculate inverse kinematics for pickup position
-  ServoPosition pickupPos = calculateInverseKinematics(x, y, 0); // Z=0 for ground level
+  // Z=0 for ground level, add height_offset for stacked boxes
+  ServoPosition pickupPos = calculateInverseKinematics(x, y, height_offset); 
   
   if (!isPositionValid(pickupPos)) {
     Serial.println("ARM:ERROR:POSITION_OUT_OF_REACH");
@@ -219,16 +242,16 @@ void handlePick(int x, int y) {
   }
 }
 
-void handlePlace(int x, int y) {
-  Serial.println("ARM:EXECUTING_PLACE:X" + String(x) + "_Y" + String(y));
+void handlePlace(int x, int y, int height_offset) {
+  Serial.println("ARM:EXECUTING_PLACE:X" + String(x) + "_Y" + String(y) + "_Z" + String(height_offset));
   
   if (!object_gripped) {
     Serial.println("ARM:ERROR:NO_OBJECT_TO_PLACE");
     return;
   }
   
-  // Calculate position for placement (slightly higher than pickup)
-  ServoPosition placePos = calculateInverseKinematics(x, y, 50); // Z=50mm above ground
+  // Calculate position for placement (50mm above ground or above stack)
+  ServoPosition placePos = calculateInverseKinematics(x, y, 50 + height_offset); 
   
   if (!isPositionValid(placePos)) {
     Serial.println("ARM:ERROR:POSITION_OUT_OF_REACH");
@@ -287,10 +310,10 @@ void handleGrip(String action) {
   }
 }
 
-void handleMove(int x, int y) {
-  Serial.println("ARM:MOVING_TO:X" + String(x) + "_Y" + String(y));
+void handleMove(int x, int y, int height_offset) {
+  Serial.println("ARM:MOVING_TO:X" + String(x) + "_Y" + String(y) + "_Z" + String(height_offset));
   
-  ServoPosition targetPos = calculateInverseKinematics(x, y, 100); // 100mm height
+  ServoPosition targetPos = calculateInverseKinematics(x, y, 100 + height_offset); // Base 100mm height + offset
   
   if (!isPositionValid(targetPos)) {
     Serial.println("ARM:ERROR:POSITION_OUT_OF_REACH");
@@ -319,6 +342,7 @@ void handleStatus() {
   status += "ELBOW:" + String(currentPosition.elbow) + ",";
   status += "WRIST:" + String(currentPosition.wrist) + ",";
   status += "GRIPPER:" + String(currentPosition.gripper) + ",";
+  status += "HEIGHT_OFFSET:" + String(currentPosition.height_offset) + ",";
   status += "GRIPPED:" + String(object_gripped ? "TRUE" : "FALSE");
   
   Serial.println(status);
@@ -454,6 +478,7 @@ ServoPosition calculateInverseKinematics(int x, int y, int z) {
   // This is a basic implementation - adjust for your specific uArm model
   
   ServoPosition result;
+  result.height_offset = z;  // Store height offset in result
   
   // Calculate base rotation
   result.base = map(atan2(y, x) * 180 / PI, -90, 90, 0, 180);

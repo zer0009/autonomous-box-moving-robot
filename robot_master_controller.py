@@ -16,15 +16,22 @@ import numpy as np
 from datetime import datetime
 import heapq
 import math
+import random
 
 class RobotMasterController:
-    def __init__(self):
+    def __init__(self, simulation_mode=False):
+        # Simulation mode flag
+        self.simulation_mode = simulation_mode
+        
         # UART connections to ESP32 controllers with retry mechanism
         self.nav_uart = None
         self.arm_uart = None
         
-        # Try to establish UART connections
-        self.connect_uart_devices()
+        # Try to establish UART connections if not in simulation mode
+        if not self.simulation_mode:
+            self.connect_uart_devices()
+        else:
+            print("Running in SIMULATION MODE - No hardware connections required")
         
         # Camera setup with fallback options
         self.camera = None
@@ -43,21 +50,52 @@ class RobotMasterController:
         self.grid_size = 20  # 20x20 grid
         self.cell_size = 50  # 50mm per cell
         
-        # Shelf positions (QR code -> grid coordinates)
+        # Shelf positions (QR code -> grid coordinates with shelf sections)
         self.shelf_positions = {
-            'SHELF_A': (18, 5),
-            'SHELF_B': (18, 10),
-            'SHELF_C': (18, 15),
+            'SHELF_A': {
+                'base': (18, 5),
+                'sections': {
+                    'A1': {'offset': (0, 0), 'capacity': 3, 'occupied': 0},
+                    'A2': {'offset': (0, 1), 'capacity': 3, 'occupied': 0},
+                    'A3': {'offset': (0, 2), 'capacity': 3, 'occupied': 0}
+                }
+            },
+            'SHELF_B': {
+                'base': (18, 10),
+                'sections': {
+                    'B1': {'offset': (0, 0), 'capacity': 3, 'occupied': 0},
+                    'B2': {'offset': (0, 1), 'capacity': 3, 'occupied': 0},
+                    'B3': {'offset': (0, 2), 'capacity': 3, 'occupied': 0}
+                }
+            },
+            'SHELF_C': {
+                'base': (18, 15),
+                'sections': {
+                    'C1': {'offset': (0, 0), 'capacity': 3, 'occupied': 0},
+                    'C2': {'offset': (0, 1), 'capacity': 3, 'occupied': 0},
+                    'C3': {'offset': (0, 2), 'capacity': 3, 'occupied': 0}
+                }
+            },
             'HOME': (1, 1)
         }
+        
+        # Add a multi-box queue to track boxes being carried
+        self.box_queue = []
+        self.max_box_capacity = 2  # Maximum boxes the robot can carry at once
+        
+        # Robot state (update to track multiple box carrying)
+        self.carrying_boxes = []  # List of boxes currently being carried
         
         # Command queues
         self.nav_response_queue = queue.Queue()
         self.arm_response_queue = queue.Queue()
         
         # Start communication threads if connections established
-        if self.nav_uart and self.arm_uart:
-            self.start_communication_threads()
+        if (self.nav_uart and self.arm_uart) or self.simulation_mode:
+            if self.simulation_mode:
+                self.start_simulation_threads()
+            else:
+                self.start_communication_threads()
             print("Robot Master Controller Initialized")
         else:
             print("Robot partially initialized - some hardware not connected")
@@ -129,6 +167,8 @@ class RobotMasterController:
                 status TEXT DEFAULT 'pending',
                 source_position TEXT,
                 destination_shelf TEXT,
+                destination_section TEXT,
+                stack_position INTEGER DEFAULT 0,
                 pickup_time TIMESTAMP,
                 delivery_time TIMESTAMP,
                 weight REAL,
@@ -145,6 +185,28 @@ class RobotMasterController:
                 success BOOLEAN
             )
         ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shelf_sections (
+                shelf_id TEXT,
+                section_id TEXT,
+                capacity INTEGER,
+                occupied INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (shelf_id, section_id)
+            )
+        ''')
+        
+        # Initialize shelf sections in database if not already populated
+        for shelf_id, shelf_data in self.shelf_positions.items():
+            if isinstance(shelf_data, tuple):  # Skip HOME which is just coordinates
+                continue
+            
+            for section_id, section_data in shelf_data['sections'].items():
+                cursor.execute('''
+                    INSERT OR IGNORE INTO shelf_sections (shelf_id, section_id, capacity, occupied)
+                    VALUES (?, ?, ?, ?)
+                ''', (shelf_id, section_id, section_data['capacity'], section_data['occupied']))
         
         self.db.commit()
     
@@ -201,9 +263,101 @@ class RobotMasterController:
                     pass
             time.sleep(0.01)
     
+    def start_simulation_threads(self):
+        """Start simulation threads for testing without hardware"""
+        nav_thread = threading.Thread(target=self.simulation_nav_handler, daemon=True)
+        nav_thread.start()
+        
+        arm_thread = threading.Thread(target=self.simulation_arm_handler, daemon=True)
+        arm_thread.start()
+        
+        print("Simulation threads started")
+    
+    def simulation_nav_handler(self):
+        """Simulate navigation controller responses"""
+        while True:
+            time.sleep(0.1)
+            if not self.nav_response_queue.empty():
+                continue
+                
+            # Simulate occasional position updates
+            if random.random() < 0.05:  # 5% chance each cycle
+                # Simulate small random movements
+                x, y = self.current_position
+                dx = random.choice([-1, 0, 1])
+                dy = random.choice([-1, 0, 1])
+                new_x = max(0, min(self.grid_size-1, x + dx))
+                new_y = max(0, min(self.grid_size-1, y + dy))
+                self.current_position = (new_x, new_y)
+                
+                # Simulate orientation changes
+                self.current_orientation = (self.current_orientation + random.choice([-10, 0, 10])) % 360
+                
+                # Log the simulated movement
+                self.log_event("SIM_MOVE", f"Simulated movement to {self.current_position}")
+    
+    def simulation_arm_handler(self):
+        """Simulate arm controller responses"""
+        while True:
+            time.sleep(0.1)
+            if not self.arm_response_queue.empty():
+                continue
+                
+            # Simulate occasional arm actions
+            if random.random() < 0.02:  # 2% chance each cycle
+                action = random.choice(["GRIP", "RELEASE", "HOME"])
+                self.log_event("SIM_ARM", f"Simulated arm action: {action}")
+    
     def send_nav_command(self, action, param1="", param2="", timeout=10):
-        """Send command to navigation ESP32"""
-        if not self.nav_uart:
+        """Send command to navigation ESP32 or simulate response"""
+        if self.simulation_mode:
+            # Simulate response
+            time.sleep(0.2)  # Simulate processing delay
+            
+            # Log the command
+            self.log_event("SIM_NAV_CMD", f"{action}:{param1}:{param2}")
+            
+            # Generate simulated response
+            if action == "MOVE":
+                # Update simulated position
+                if param1 == "FORWARD":
+                    distance = float(param2) if param2 else 50
+                    angle_rad = math.radians(self.current_orientation)
+                    dx = math.cos(angle_rad) * (distance / self.cell_size)
+                    dy = math.sin(angle_rad) * (distance / self.cell_size)
+                    
+                    x, y = self.current_position
+                    new_x = max(0, min(self.grid_size-1, x + round(dx)))
+                    new_y = max(0, min(self.grid_size-1, y + round(dy)))
+                    self.current_position = (new_x, new_y)
+                
+                return "NAV:SUCCESS:MOVE"
+                
+            elif action == "TURN":
+                # Update simulated orientation
+                if param1 == "LEFT":
+                    self.current_orientation = (self.current_orientation + float(param2)) % 360
+                elif param1 == "RIGHT":
+                    self.current_orientation = (self.current_orientation - float(param2)) % 360
+                
+                return "NAV:SUCCESS:TURN"
+                
+            elif action == "STOP":
+                return "NAV:SUCCESS:STOP"
+                
+            elif action == "POSITION":
+                return "NAV:SUCCESS:POSITION"
+                
+            elif action == "SCAN":
+                # Randomly decide if obstacle detected
+                if random.random() < 0.1:  # 10% chance of obstacle
+                    return "NAV:OBSTACLE:FRONT:15"
+                else:
+                    return "NAV:CLEAR:FRONT:50,LEFT:45,RIGHT:48"
+            
+            return "NAV:SUCCESS"
+            
+        elif not self.nav_uart:
             print("Navigation controller not connected!")
             return "ERROR:NOT_CONNECTED"
             
@@ -221,8 +375,49 @@ class RobotMasterController:
         return "TIMEOUT"
     
     def send_arm_command(self, action, param1="", param2="", timeout=15):
-        """Send command to arm ESP32"""
-        if not self.arm_uart:
+        """Send command to arm ESP32 or simulate response"""
+        if self.simulation_mode:
+            # Simulate response
+            time.sleep(0.3)  # Simulate processing delay
+            
+            # Log the command
+            self.log_event("SIM_ARM_CMD", f"{action}:{param1}:{param2}")
+            
+            # Generate simulated response
+            if action == "PICK":
+                # Simulate successful pickup most of the time
+                if random.random() < 0.9:  # 90% success rate
+                    return "ARM:SUCCESS:PICK"
+                else:
+                    return "ARM:ERROR:PICK:FAILED"
+                    
+            elif action == "PLACE":
+                # Simulate successful placement most of the time
+                if random.random() < 0.9:  # 90% success rate
+                    return "ARM:SUCCESS:PLACE"
+                else:
+                    return "ARM:ERROR:PLACE:FAILED"
+                    
+            elif action == "GRIP":
+                if param1 == "STATUS":
+                    return "ARM:GRIPPED" if random.random() < 0.9 else "ARM:NOT_GRIPPED"
+                elif param1 == "OPEN":
+                    return "ARM:SUCCESS:GRIP_OPEN"
+                else:
+                    return "ARM:SUCCESS:GRIP"
+                    
+            elif action == "HOME":
+                return "ARM:SUCCESS:HOME"
+                
+            elif action == "STOP":
+                return "ARM:SUCCESS:STOP"
+                
+            elif action == "TRANSPORT":
+                return "ARM:SUCCESS:TRANSPORT"
+            
+            return "ARM:SUCCESS"
+            
+        elif not self.arm_uart:
             print("Arm controller not connected!")
             return "ERROR:NOT_CONNECTED"
             
@@ -279,61 +474,279 @@ class RobotMasterController:
     
     def parse_box_qr(self, qr_data):
         """Parse box QR code data"""
-        # Format: BOX_ID123_SHELF_A_WEIGHT_2.5
+        # Updated format: BOX_ID123_SHELF_A_SECTION_A2_WEIGHT_2.5
         parts = qr_data.split('_')
-        if len(parts) >= 4:
+        if len(parts) >= 6:
             box_id = parts[1]
             destination = f"SHELF_{parts[3]}"
+            section = f"{parts[3]}{parts[5]}" if len(parts) > 5 else f"{parts[3]}1"  # Default to section 1
+            weight = float(parts[7]) if len(parts) > 7 else 1.0
+            return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
+        elif len(parts) >= 4:
+            # Handle legacy format
+            box_id = parts[1]
+            destination = f"SHELF_{parts[3]}"
+            section = f"{parts[3]}1"  # Default to section 1
             weight = float(parts[5]) if len(parts) > 5 else 1.0
-            return {'id': box_id, 'destination': destination, 'weight': weight}
+            return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
         return None
     
-    def a_star_pathfinding(self, start, goal):
-        """A* pathfinding algorithm with obstacle avoidance"""
-        def heuristic(a, b):
-            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    def find_available_section(self, shelf_id):
+        """Find an available section in the specified shelf"""
+        cursor = self.db.cursor()
+        cursor.execute('''
+            SELECT section_id, capacity, occupied 
+            FROM shelf_sections 
+            WHERE shelf_id = ? 
+            ORDER BY occupied
+        ''', (shelf_id,))
         
-        def get_neighbors(pos):
-            x, y = pos
-            neighbors = []
-            for dx, dy in [(0,1), (1,0), (0,-1), (-1,0), (1,1), (-1,-1), (1,-1), (-1,1)]:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < self.grid_size and 0 <= ny < self.grid_size:
-                    if (nx, ny) not in self.obstacle_map:
-                        neighbors.append((nx, ny))
-            return neighbors
+        sections = cursor.fetchall()
         
-        open_set = [(0, start)]
-        came_from = {}
-        g_score = {start: 0}
-        f_score = {start: heuristic(start, goal)}
+        for section_id, capacity, occupied in sections:
+            if occupied < capacity:
+                return section_id
         
-        while open_set:
-            current = heapq.heappop(open_set)[1]
+        return None  # No available sections
+    
+    def process_box_task(self, box_qr_data):
+        """Process complete box moving task"""
+        box_info = self.parse_box_qr(box_qr_data)
+        if not box_info:
+            print("Invalid box QR code")
+            return False
+        
+        # Check if we can pick up another box
+        if len(self.carrying_boxes) >= self.max_box_capacity:
+            print(f"Already carrying maximum capacity of {self.max_box_capacity} boxes")
+            return False
+        
+        # If no specific section provided, find an available one
+        if 'section' not in box_info or not box_info['section']:
+            shelf_id = box_info['destination']
+            box_info['section'] = self.find_available_section(shelf_id) or f"{shelf_id[-1]}1"  # Default to section 1
+        
+        # Add to database
+        cursor = self.db.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO boxes 
+            (id, destination_shelf, destination_section, source_position, weight)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (box_info['id'], box_info['destination'], box_info['section'], 
+              str(self.current_position), box_info['weight']))
+        self.db.commit()
+        
+        # Execute pickup
+        if self.execute_pickup_sequence(box_info):
+            # Add to carrying boxes list
+            self.carrying_boxes.append(box_info)
             
-            if current == goal:
-                # Reconstruct path
-                path = []
-                while current in came_from:
-                    path.append(current)
-                    current = came_from[current]
-                path.append(start)
-                return path[::-1]
-            
-            for neighbor in get_neighbors(current):
-                tentative_g = g_score[current] + 1
+            # If we've reached capacity or it's a priority delivery, deliver immediately
+            if len(self.carrying_boxes) >= self.max_box_capacity:
+                return self.deliver_all_boxes()
+            else:
+                print(f"Box {box_info['id']} picked up, capacity: {len(self.carrying_boxes)}/{self.max_box_capacity}")
+                return True
+        else:
+            self.log_event("PICKUP_FAILED", f"Failed to pick up box {box_info['id']}", False)
+        
+        return False
+    
+    def execute_pickup_sequence(self, box_info):
+        """Execute complete box pickup sequence"""
+        print(f"Executing pickup for box {box_info['id']}")
+        
+        # Position robot for optimal pickup angle
+        response = self.send_nav_command("POSITION", "PICKUP")
+        if "SUCCESS" not in response:
+            return False
+        
+        # Initialize arm to home position if not already there
+        response = self.send_arm_command("HOME")
+        if "SUCCESS" not in response:
+            print("Arm home position failed")
+            return False
+        
+        # Calculate pickup coordinates (adjust based on QR position)
+        pickup_x = 150  # mm from robot center
+        pickup_y = 0    # mm from robot center
+        
+        # Adjust height based on already carrying boxes
+        height_offset = len(self.carrying_boxes) * 50  # 50mm per box height
+        
+        # Execute pickup sequence
+        response = self.send_arm_command("PICK", str(pickup_x), str(pickup_y), str(height_offset))
+        if "SUCCESS" in response:
+            # Confirm grip
+            grip_status = self.send_arm_command("GRIP", "STATUS")
+            if "GRIPPED" in grip_status:
+                print("Box successfully picked up")
                 
-                if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                    came_from[neighbor] = current
-                    g_score[neighbor] = tentative_g
-                    f_score[neighbor] = tentative_g + heuristic(neighbor, goal)
-                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+                # Move to transport position
+                self.send_arm_command("TRANSPORT")
+                
+                # Update database
+                cursor = self.db.cursor()
+                cursor.execute('''
+                    UPDATE boxes SET status = 'picked', pickup_time = ?, stack_position = ?
+                    WHERE id = ?
+                ''', (datetime.now(), len(self.carrying_boxes), box_info['id']))
+                self.db.commit()
+                
+                return True
         
-        return []  # No path found
+        print("Pickup failed")
+        return False
+    
+    def execute_delivery_sequence(self, box_info):
+        """Execute complete box delivery sequence"""
+        print(f"Executing delivery for box {box_info['id']}")
+        
+        # Navigate to destination shelf
+        shelf_pos = self.shelf_positions.get(box_info['destination'])
+        if not shelf_pos:
+            print(f"Unknown shelf: {box_info['destination']}")
+            return False
+        
+        if not self.navigate_to_position(shelf_pos):
+            print("Navigation to shelf failed")
+            return False
+        
+        # Position for placement
+        response = self.send_nav_command("POSITION", "PLACE")
+        if "SUCCESS" not in response:
+            return False
+        
+        # Calculate placement coordinates
+        place_x = 200  # mm from robot center
+        place_y = 0    # mm from robot center
+        
+        # Execute placement
+        response = self.send_arm_command("PLACE", str(place_x), str(place_y))
+        if "SUCCESS" in response:
+            # Open gripper
+            self.send_arm_command("GRIP", "OPEN")
+            
+            # Return to home position
+            self.send_arm_command("HOME")
+            
+            # Update database
+            cursor = self.db.cursor()
+            cursor.execute('''
+                UPDATE boxes SET status = 'delivered', delivery_time = ?
+                WHERE id = ?
+            ''', (datetime.now(), box_info['id']))
+            self.db.commit()
+            
+            print(f"Box {box_info['id']} delivered successfully")
+            return True
+        
+        print("Delivery failed")
+        return False
+    
+    def deliver_all_boxes(self):
+        """Deliver all boxes currently being carried"""
+        if not self.carrying_boxes:
+            print("No boxes to deliver")
+            return True
+        
+        # Group boxes by destination shelf to optimize delivery
+        boxes_by_shelf = {}
+        for box in self.carrying_boxes:
+            shelf = box['destination']
+            if shelf not in boxes_by_shelf:
+                boxes_by_shelf[shelf] = []
+            boxes_by_shelf[shelf].append(box)
+        
+        # Deliver boxes shelf by shelf
+        success = True
+        for shelf, boxes in boxes_by_shelf.items():
+            # Navigate to shelf position
+            shelf_data = self.shelf_positions.get(shelf)
+            if not shelf_data:
+                print(f"Unknown shelf: {shelf}")
+                success = False
+                continue
+            
+            # Get base position for shelf
+            if isinstance(shelf_data, tuple):
+                # Legacy format
+                shelf_pos = shelf_data
+            else:
+                # New format with sections
+                shelf_pos = shelf_data['base']
+            
+            if not self.navigate_to_position(shelf_pos):
+                print(f"Navigation to shelf {shelf} failed")
+                success = False
+                continue
+            
+            # Position for placement
+            response = self.send_nav_command("POSITION", "PLACE")
+            
+            # Deliver each box to its section
+            for box in boxes:
+                section = box['section']
+                section_data = None
+                
+                # Get section data if available
+                if not isinstance(shelf_data, tuple) and section in shelf_data['sections']:
+                    section_data = shelf_data['sections'][section]
+                
+                # Calculate placement coordinates based on section
+                if section_data and 'offset' in section_data:
+                    place_x = 200  # Base distance from robot
+                    place_y = section_data['offset'][1] * 50  # Offset based on section
+                else:
+                    # Default placement if section not found
+                    place_x = 200
+                    place_y = 0
+                
+                # Execute placement
+                print(f"Placing box {box['id']} at shelf {shelf} section {section}")
+                response = self.send_arm_command("PLACE", str(place_x), str(place_y))
+                
+                if "SUCCESS" in response:
+                    # Open gripper
+                    self.send_arm_command("GRIP", "OPEN")
+                    
+                    # Update database
+                    cursor = self.db.cursor()
+                    cursor.execute('''
+                        UPDATE boxes SET status = 'delivered', delivery_time = ?
+                        WHERE id = ?
+                    ''', (datetime.now(), box['id']))
+                    
+                    # Update shelf section occupancy
+                    cursor.execute('''
+                        UPDATE shelf_sections 
+                        SET occupied = occupied + 1, last_updated = ?
+                        WHERE shelf_id = ? AND section_id = ?
+                    ''', (datetime.now(), shelf, section))
+                    
+                    self.db.commit()
+                    
+                    print(f"Box {box['id']} delivered successfully to {shelf} section {section}")
+                else:
+                    print(f"Delivery failed for box {box['id']}")
+                    success = False
+        
+        # Return arm to home position
+        self.send_arm_command("HOME")
+        
+        # Clear the carrying boxes list regardless of success
+        # In real implementation, you might want to only remove successfully delivered boxes
+        self.carrying_boxes = []
+        
+        return success
     
     def navigate_to_position(self, target_pos):
         """Navigate to target position using A* pathfinding"""
         print(f"Navigating from {self.current_position} to {target_pos}")
+        
+        # Handle tuple or dict target position
+        if isinstance(target_pos, dict) and 'base' in target_pos:
+            target_pos = target_pos['base']
         
         # Plan path
         path = self.a_star_pathfinding(self.current_position, target_pos)
@@ -454,216 +867,6 @@ class RobotMasterController:
         
         return None
     
-    def execute_pickup_sequence(self, box_info):
-        """Execute complete box pickup sequence"""
-        print(f"Executing pickup for box {box_info['id']}")
-        
-        # Position robot for optimal pickup angle
-        response = self.send_nav_command("POSITION", "PICKUP")
-        if "SUCCESS" not in response:
-            return False
-        
-        # Initialize arm to home position
-        response = self.send_arm_command("HOME")
-        if "SUCCESS" not in response:
-            print("Arm home position failed")
-            return False
-        
-        # Calculate pickup coordinates (adjust based on QR position)
-        pickup_x = 150  # mm from robot center
-        pickup_y = 0    # mm from robot center
-        
-        # Execute pickup sequence
-        response = self.send_arm_command("PICK", str(pickup_x), str(pickup_y))
-        if "SUCCESS" in response:
-            # Confirm grip
-            grip_status = self.send_arm_command("GRIP", "STATUS")
-            if "GRIPPED" in grip_status:
-                print("Box successfully picked up")
-                
-                # Move to transport position
-                self.send_arm_command("TRANSPORT")
-                
-                # Update database
-                cursor = self.db.cursor()
-                cursor.execute('''
-                    UPDATE boxes SET status = 'picked', pickup_time = ?
-                    WHERE id = ?
-                ''', (datetime.now(), box_info['id']))
-                self.db.commit()
-                
-                return True
-        
-        print("Pickup failed")
-        return False
-    
-    def execute_delivery_sequence(self, box_info):
-        """Execute complete box delivery sequence"""
-        print(f"Executing delivery for box {box_info['id']}")
-        
-        # Navigate to destination shelf
-        shelf_pos = self.shelf_positions.get(box_info['destination'])
-        if not shelf_pos:
-            print(f"Unknown shelf: {box_info['destination']}")
-            return False
-        
-        if not self.navigate_to_position(shelf_pos):
-            print("Navigation to shelf failed")
-            return False
-        
-        # Position for placement
-        response = self.send_nav_command("POSITION", "PLACE")
-        if "SUCCESS" not in response:
-            return False
-        
-        # Calculate placement coordinates
-        place_x = 200  # mm from robot center
-        place_y = 0    # mm from robot center
-        
-        # Execute placement
-        response = self.send_arm_command("PLACE", str(place_x), str(place_y))
-        if "SUCCESS" in response:
-            # Open gripper
-            self.send_arm_command("GRIP", "OPEN")
-            
-            # Return to home position
-            self.send_arm_command("HOME")
-            
-            # Update database
-            cursor = self.db.cursor()
-            cursor.execute('''
-                UPDATE boxes SET status = 'delivered', delivery_time = ?
-                WHERE id = ?
-            ''', (datetime.now(), box_info['id']))
-            self.db.commit()
-            
-            print(f"Box {box_info['id']} delivered successfully")
-            return True
-        
-        print("Delivery failed")
-        return False
-    
-    def process_box_task(self, box_qr_data):
-        """Process complete box moving task"""
-        box_info = self.parse_box_qr(box_qr_data)
-        if not box_info:
-            print("Invalid box QR code")
-            return False
-        
-        # Add to database
-        cursor = self.db.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO boxes 
-            (id, destination_shelf, source_position, weight)
-            VALUES (?, ?, ?, ?)
-        ''', (box_info['id'], box_info['destination'], 
-              str(self.current_position), box_info['weight']))
-        self.db.commit()
-        
-        # Execute pickup
-        if self.execute_pickup_sequence(box_info):
-            # Execute delivery
-            if self.execute_delivery_sequence(box_info):
-                self.log_event("TASK_COMPLETE", f"Successfully moved box {box_info['id']}")
-                return True
-            else:
-                self.log_event("DELIVERY_FAILED", f"Failed to deliver box {box_info['id']}", False)
-        else:
-            self.log_event("PICKUP_FAILED", f"Failed to pick up box {box_info['id']}", False)
-        
-        return False
-    
-    def main_loop(self):
-        """Main robot operation loop"""
-        print("Starting main robot loop...")
-        
-        # Check if we're in simulation mode (missing hardware)
-        simulation_mode = not all([self.nav_uart, self.arm_uart, self.camera])
-        if simulation_mode:
-            print("WARNING: Running in simulation mode with limited functionality")
-        
-        while True:
-            try:
-                if self.robot_busy:
-                    time.sleep(1)
-                    continue
-                
-                # Scan for QR codes if camera is available
-                qr_codes = []
-                if self.camera:
-                    qr_codes = self.scan_qr_codes()
-                elif simulation_mode and not self.robot_busy:
-                    # In simulation mode, we can simulate finding a QR code
-                    user_input = input("\nSimulation mode: Enter 'box' to simulate box detection, "
-                                       "'floor' for floor marker, or Enter to continue: ")
-                    if user_input.lower() == 'box':
-                        print("Simulating box QR code detection...")
-                        qr_codes = [{
-                            'data': 'BOX_SIM123_SHELF_A_WEIGHT_2.0',
-                            'position': (320, 240),
-                            'type': 'box'
-                        }]
-                    elif user_input.lower() == 'floor':
-                        print("Simulating floor marker detection...")
-                        qr_codes = [{
-                            'data': 'FLOOR_X5_Y10',
-                            'position': (320, 240),
-                            'type': 'floor_marker'
-                        }]
-                
-                for qr in qr_codes:
-                    if qr['type'] == 'box':
-                        print(f"Found box QR: {qr['data']}")
-                        self.robot_busy = True
-                        
-                        # Process the box task, handling hardware limitations
-                        if simulation_mode:
-                            print("Simulation: Processing box task...")
-                            time.sleep(2)  # Simulate processing time
-                            success = True
-                            self.log_event("SIMULATION", f"Simulated box handling for {qr['data']}")
-                        else:
-                            success = self.process_box_task(qr['data'])
-                        
-                        if success:
-                            print("Task completed successfully")
-                        else:
-                            print("Task failed")
-                        
-                        # Return to home position
-                        home_pos = self.shelf_positions['HOME']
-                        if simulation_mode:
-                            print(f"Simulation: Returning to home position {home_pos}")
-                            self.current_position = home_pos  # Just update position in simulation
-                            time.sleep(2)  # Simulate movement time
-                        else:
-                            self.navigate_to_position(home_pos)
-                        
-                        self.robot_busy = False
-                        break
-                    
-                    elif qr['type'] == 'floor_marker':
-                        # Update position based on floor marker
-                        self.update_position_from_qr(qr['data'])
-                
-                # Status update in simulation mode
-                if simulation_mode and not self.robot_busy and time.time() % 30 < 0.5:
-                    status = self.get_status_report()
-                    print("\nRobot Status:")
-                    print(f"Position: {status['current_position']}")
-                    print(f"Orientation: {status['current_orientation']}°")
-                    print(f"Pending/Completed Tasks: {status['pending_tasks']}/{status['completed_tasks']}")
-                
-                time.sleep(0.5)  # Main loop delay
-                
-            except KeyboardInterrupt:
-                print("Shutting down robot...")
-                break
-            except Exception as e:
-                print(f"Error in main loop: {e}")
-                self.robot_busy = False
-                time.sleep(1)
-    
     def update_position_from_qr(self, floor_qr):
         """Update robot position based on floor QR marker"""
         # Format: FLOOR_X10_Y15
@@ -708,7 +911,10 @@ class RobotMasterController:
             'pending_tasks': pending_tasks,
             'completed_tasks': completed_tasks,
             'obstacle_count': len(self.obstacle_map),
-            'recent_logs': recent_logs
+            'recent_logs': recent_logs,
+            'carrying_boxes': len(self.carrying_boxes),
+            'max_box_capacity': self.max_box_capacity,
+            'carried_box_details': [box['id'] for box in self.carrying_boxes]
         }
         
         return status
@@ -749,16 +955,222 @@ class RobotMasterController:
         except Exception as e:
             print(f"Error closing database: {e}")
 
+    def main_loop(self):
+        """Main operation loop for the robot"""
+        print("Starting main operation loop...")
+        
+        # Initialize web server status update thread
+        status_thread = threading.Thread(target=self.status_update_thread, daemon=True)
+        status_thread.start()
+        
+        # Main loop
+        try:
+            while True:
+                # Check for QR codes if camera available
+                if self.camera:
+                    qr_codes = self.scan_qr_codes()
+                    for qr in qr_codes:
+                        if qr['type'] == 'box':
+                            # Process box task
+                            self.process_box_task(qr['data'])
+                        elif qr['type'] == 'floor_marker':
+                            # Update position from floor marker
+                            self.update_position_from_qr(qr['data'])
+                elif self.simulation_mode:
+                    # In simulation mode, randomly simulate finding a box
+                    if random.random() < 0.01:  # 1% chance each cycle
+                        box_id = f"SIM_BOX_{random.randint(1000, 9999)}"
+                        shelf = random.choice(['A', 'B', 'C'])
+                        section = f"{shelf}{random.randint(1, 3)}"
+                        weight = round(random.uniform(0.5, 3.0), 1)
+                        
+                        # Create simulated QR data
+                        qr_data = f"BOX_{box_id}_SHELF_{shelf}_SECTION_{section}_WEIGHT_{weight}"
+                        
+                        # Log the simulated find
+                        self.log_event("SIM_FIND", f"Simulated finding box: {qr_data}")
+                        
+                        # Process the simulated box
+                        self.process_box_task(qr_data)
+                
+                # Sleep to prevent CPU overuse
+                time.sleep(0.1)
+                
+        except KeyboardInterrupt:
+            print("Main loop interrupted")
+            return
+    
+    def status_update_thread(self):
+        """Thread to periodically update web server status"""
+        while True:
+            try:
+                # Get current status
+                status = self.get_status_report()
+                
+                # Send to web server API
+                import requests
+                try:
+                    response = requests.post(
+                        'http://localhost:5000/api/update_robot_status',
+                        json=status,
+                        timeout=1
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Check for commands
+                        if data.get('has_commands', False):
+                            cmd = data.get('commands', {})
+                            self.execute_web_command(cmd)
+                except Exception as e:
+                    # Web server might not be running yet
+                    pass
+            except Exception as e:
+                print(f"Status update error: {e}")
+                
+            # Update every 2 seconds
+            time.sleep(2)
+    
+    def execute_web_command(self, command_data):
+        """Execute command received from web interface"""
+        if not command_data or 'command' not in command_data:
+            return
+            
+        cmd = command_data['command']
+        params = command_data.get('params', {})
+        
+        self.log_event("WEB_COMMAND", f"Received web command: {cmd}")
+        
+        if cmd == "move":
+            direction = params.get('direction', 'forward')
+            if direction == 'forward':
+                self.send_nav_command("MOVE", "FORWARD", "50")
+            elif direction == 'backward':
+                self.send_nav_command("MOVE", "BACKWARD", "50")
+        
+        elif cmd == "turn":
+            direction = params.get('direction', 'left')
+            if direction == 'left':
+                self.send_nav_command("TURN", "LEFT", "45")
+            elif direction == 'right':
+                self.send_nav_command("TURN", "RIGHT", "45")
+        
+        elif cmd == "stop":
+            self.send_nav_command("STOP")
+            self.send_arm_command("STOP")
+        
+        elif cmd == "home":
+            # Navigate to home position
+            home_pos = self.shelf_positions.get('HOME')
+            if home_pos:
+                self.navigate_to_position(home_pos)
+        
+        elif cmd == "emergency_stop":
+            self.emergency_stop()
+            
+        # Send result back to web server
+        try:
+            import requests
+            requests.post(
+                'http://localhost:5000/api/command_result',
+                json={'command_id': command_data.get('id', 0), 'result': 'executed'},
+                timeout=1
+            )
+        except:
+            pass
+
+    def a_star_pathfinding(self, start, goal):
+        """A* pathfinding algorithm to navigate the grid"""
+        # Initialize open and closed sets
+        open_set = []
+        closed_set = set()
+        
+        # Create start node
+        start_node = (0, start, None)  # (f_score, position, parent)
+        heapq.heappush(open_set, start_node)
+        
+        # Track g_scores (cost from start to node)
+        g_scores = {start: 0}
+        
+        while open_set:
+            # Get node with lowest f_score
+            current_f, current_pos, parent = heapq.heappop(open_set)
+            
+            # Check if we've reached the goal
+            if current_pos == goal:
+                # Reconstruct path
+                path = []
+                while current_pos:
+                    path.append(current_pos)
+                    current_pos = parent
+                    if current_pos in g_scores:
+                        # Find parent of current position
+                        for _, pos, p in open_set + list(closed_set):
+                            if pos == current_pos:
+                                parent = p
+                                break
+                    else:
+                        break
+                
+                return path[::-1]  # Return reversed path
+            
+            # Add current to closed set
+            closed_set.add((current_f, current_pos, parent))
+            
+            # Generate neighbors
+            neighbors = []
+            x, y = current_pos
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                
+                # Check if valid position
+                if 0 <= nx < self.grid_size and 0 <= ny < self.grid_size:
+                    # Check if not an obstacle
+                    if (nx, ny) not in self.obstacle_map:
+                        neighbors.append((nx, ny))
+            
+            # Process neighbors
+            for neighbor in neighbors:
+                # Skip if in closed set
+                if any(pos == neighbor for _, pos, _ in closed_set):
+                    continue
+                
+                # Calculate g_score for this neighbor
+                tentative_g = g_scores[current_pos] + 1
+                
+                # Check if this path is better than any previous one
+                if neighbor in g_scores and tentative_g >= g_scores[neighbor]:
+                    continue
+                
+                # This is the best path so far
+                g_scores[neighbor] = tentative_g
+                
+                # Calculate f_score (g_score + heuristic)
+                h_score = abs(neighbor[0] - goal[0]) + abs(neighbor[1] - goal[1])
+                f_score = tentative_g + h_score
+                
+                # Add to open set
+                heapq.heappush(open_set, (f_score, neighbor, current_pos))
+        
+        # No path found
+        return []
+
 if __name__ == "__main__":
     robot = None
+    
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='Robot Master Controller')
+    parser.add_argument('--simulation', action='store_true', help='Run in simulation mode without hardware')
+    args = parser.parse_args()
+    
     try:
-        robot = RobotMasterController()
+        robot = RobotMasterController(simulation_mode=args.simulation)
         
         # Check if essential components are connected
-        if not robot.camera:
+        if not robot.camera and not robot.simulation_mode:
             print("WARNING: Running without camera - QR code detection disabled")
             
-        if not robot.nav_uart or not robot.arm_uart:
+        if (not robot.nav_uart or not robot.arm_uart) and not robot.simulation_mode:
             print("WARNING: Running with limited functionality")
             user_input = input("Do you want to continue anyway? (y/n): ")
             if user_input.lower() != 'y':

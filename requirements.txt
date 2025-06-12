@@ -1,4 +1,17 @@
+# Robot Controller Requirements
+pyserial>=3.4
 opencv-python>=4.5.0
-pyserial>=3.5
 pyzbar>=0.1.8
-numpy>=1.20.0 
+numpy>=1.19.0
+pillow>=8.0.0
+requests>=2.25.0
+
+# QR Code Generator Requirements
+qrcode>=7.3.1
+
+# Web Server Requirements
+flask>=2.0.0
+werkzeug>=2.0.0
+
+# Database
+# sqlite3 is included in Python standard library 
