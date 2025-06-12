@@ -918,18 +918,42 @@ class RobotMasterController:
     
     def update_obstacle_map(self, sensor_data):
         """Update obstacle map based on ultrasonic sensor data"""
-        # Parse sensor data format: "FRONT:25,LEFT:15,RIGHT:30"
-        sensors = sensor_data.split(',')
-        obstacle_threshold = 20  # 20cm
+        # Parse sensor data format: "NAV:OBSTACLE:FRONT:15" or "NAV:CLEAR:FRONT:50,LEFT:45,RIGHT:48"
+        if ":" not in sensor_data:
+            return
+            
+        parts = sensor_data.split(":")
+        if len(parts) < 3:
+            return
+            
+        # Skip the NAV: prefix
+        status = parts[1]  # OBSTACLE or CLEAR
         
-        for sensor in sensors:
-            if ':' in sensor:
-                direction, distance = sensor.split(':')
-                if float(distance) < obstacle_threshold:
-                    # Calculate obstacle position relative to robot
-                    obstacle_pos = self.calculate_obstacle_position(direction, float(distance))
-                    if obstacle_pos:
-                        self.obstacle_map[obstacle_pos] = time.time()
+        # Process sensor readings if they exist
+        if len(parts) >= 3:
+            sensors_data = parts[2:]
+            
+            # Join remaining parts in case there are colons in the data
+            sensor_readings = ":".join(sensors_data)
+            
+            # Split by comma for multiple sensor readings
+            sensors = sensor_readings.split(',')
+            obstacle_threshold = 20  # 20cm
+            
+            for sensor in sensors:
+                if ':' in sensor:
+                    try:
+                        direction, distance = sensor.split(':')
+                        distance = float(distance)
+                        if distance < obstacle_threshold:
+                            # Calculate obstacle position relative to robot
+                            obstacle_pos = self.calculate_obstacle_position(direction, distance)
+                            if obstacle_pos:
+                                self.obstacle_map[obstacle_pos] = time.time()
+                    except ValueError:
+                        # Skip malformed sensor data
+                        print(f"Malformed sensor data: {sensor}")
+                        continue
     
     def calculate_obstacle_position(self, direction, distance):
         """Calculate obstacle grid position based on sensor data"""
