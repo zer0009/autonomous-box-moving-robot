@@ -220,6 +220,13 @@ class RobotMasterController:
             )
         ''')
         
+        # Check if stack_position column exists, add it if not
+        cursor.execute("PRAGMA table_info(boxes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'stack_position' not in columns:
+            cursor.execute('ALTER TABLE boxes ADD COLUMN stack_position INTEGER DEFAULT 0')
+            print("Added missing stack_position column to boxes table")
+        
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS robot_log (
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -534,21 +541,37 @@ class RobotMasterController:
         # Updated format: BOX_ID123_SHELF_A_SECTION_A2_WEIGHT_2.5
         parts = qr_data.split('_')
         if len(parts) >= 6:
-            box_id = parts[1]
-            destination = f"SHELF_{parts[3]}"
-            section = parts[5]  # This is just the section number (e.g., "A3")
-            
-            # Make sure weight is parsed correctly
-            weight = 1.0  # Default weight
-            if len(parts) > 7 and parts[6] == "WEIGHT":
-                try:
-                    weight = float(parts[7])
-                except ValueError:
-                    print(f"Warning: Could not convert weight '{parts[7]}' to float, using default 1.0")
+            # Extract the full box ID (which might contain underscores)
+            if parts[0] == "BOX" and "SHELF" in qr_data:
+                # Find the index where SHELF starts
+                shelf_index = parts.index("SHELF")
+                # Combine all parts between BOX and SHELF for the ID
+                box_id = "_".join(parts[1:shelf_index])
                 
-            return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
+                # Get shelf letter
+                shelf_letter = parts[shelf_index + 1]
+                destination = f"SHELF_{shelf_letter}"
+                
+                # Get section
+                section_index = parts.index("SECTION") if "SECTION" in parts else -1
+                if section_index != -1 and section_index + 1 < len(parts):
+                    section = parts[section_index + 1]
+                else:
+                    section = f"{shelf_letter}1"  # Default to section 1
+                
+                # Get weight
+                weight = 1.0  # Default weight
+                weight_index = parts.index("WEIGHT") if "WEIGHT" in parts else -1
+                if weight_index != -1 and weight_index + 1 < len(parts):
+                    try:
+                        weight = float(parts[weight_index + 1])
+                    except ValueError:
+                        print(f"Warning: Could not convert weight '{parts[weight_index + 1]}' to float, using default 1.0")
+                
+                return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
+        
+        # Handle legacy format
         elif len(parts) >= 4:
-            # Handle legacy format
             box_id = parts[1]
             destination = f"SHELF_{parts[3]}"
             section = f"{parts[3]}1"  # Default to section 1
@@ -562,6 +585,8 @@ class RobotMasterController:
                     print(f"Warning: Could not convert weight '{parts[5]}' to float, using default 1.0")
                 
             return {'id': box_id, 'destination': destination, 'section': section, 'weight': weight}
+        
+        print(f"Invalid QR code format: {qr_data}")
         return None
     
     def find_available_section(self, shelf_id):
