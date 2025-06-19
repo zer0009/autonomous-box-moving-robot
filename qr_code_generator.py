@@ -46,6 +46,8 @@ class RobotQRGenerator:
             )
         ''')
         
+        # Drop and recreate qr_codes table to ensure it has the correct schema
+        cursor.execute('DROP TABLE IF EXISTS qr_codes')
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS qr_codes (
                 id TEXT PRIMARY KEY,
