@@ -78,11 +78,16 @@ def send_command(ser, command, logger=None, wait_time=0.5):
         # Read response
         response = ""
         while ser.in_waiting:
-            line = ser.readline().decode().strip()
-            if line:
+            try:
+                line = ser.readline().decode(errors="replace").strip()
+                if line:
+                    if logger:
+                        logger.debug(f"Received: {line}")
+                    response += line + "\n"
+            except Exception as e:
                 if logger:
-                    logger.debug(f"Received: {line}")
-                response += line + "\n"
+                    logger.error(f"Error decoding response: {e}")
+                continue
         
         return response
     except Exception as e:
@@ -102,37 +107,37 @@ def test_nav_motors(ser, logger=None):
     try:
         # First clear any emergency state
         print("Clearing emergency status...")
-        send_command(ser, "No_Emergency", logger)
+        send_command(ser, "No_Emergency", logger, wait_time=1.0)
         time.sleep(1)
         
         # Test forward movement
         print("Moving forward for 2 seconds...")
-        send_command(ser, "IR:ON", logger)
+        send_command(ser, "IR:ON", logger, wait_time=1.0)
         time.sleep(2)
         
         # Stop
         print("Stopping...")
-        send_command(ser, "IR:OFF", logger)
+        send_command(ser, "IR:OFF", logger, wait_time=1.0)
         time.sleep(1)
         
         # Test left turn
         print("Turning left for 2 seconds...")
-        send_command(ser, "TURN_LEFT", logger)
+        send_command(ser, "TURN_LEFT", logger, wait_time=1.0)
         time.sleep(2)
         
         # Stop
         print("Stopping...")
-        send_command(ser, "IR:OFF", logger)
+        send_command(ser, "IR:OFF", logger, wait_time=1.0)
         time.sleep(1)
         
         # Test right turn
         print("Turning right for 2 seconds...")
-        send_command(ser, "TURN_RIGHT", logger)
+        send_command(ser, "TURN_RIGHT", logger, wait_time=1.0)
         time.sleep(2)
         
         # Stop
         print("Stopping...")
-        send_command(ser, "IR:OFF", logger)
+        send_command(ser, "IR:OFF", logger, wait_time=1.0)
         
         print("Navigation motor test complete")
         return True
@@ -142,7 +147,11 @@ def test_nav_motors(ser, logger=None):
         return False
     finally:
         # Make sure motors are stopped
-        send_command(ser, "IR:OFF", logger)
+        try:
+            send_command(ser, "IR:OFF", logger, wait_time=1.0)
+            print("Motors stopped")
+        except:
+            print("Warning: Could not send final stop command")
 
 def test_arm_motors(ser, logger=None):
     """Test arm motors"""
@@ -204,6 +213,7 @@ def main():
     parser.add_argument('--nav-port', help='Serial port for navigation controller')
     parser.add_argument('--arm-port', help='Serial port for arm controller')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--esp-now', action='store_true', help='ARM controller communicates via ESP-NOW through NAV')
     args = parser.parse_args()
     
     # If no specific test is selected, test both
@@ -224,28 +234,73 @@ def main():
         if args.nav_port:
             nav_ser = connect_to_port(args.nav_port)
         else:
-            print("No navigation port specified. Please use --nav-port")
+            # Try to auto-detect NAV controller
+            for port in available_ports:
+                if 'USB' in port or 'ACM' in port:
+                    print(f"Trying {port} for navigation controller...")
+                    nav_ser = connect_to_port(port)
+                    if nav_ser:
+                        # Test if this is the NAV controller
+                        response = send_command(nav_ser, "IDENTIFY", logger)
+                        if response and ("NAV" in response or "NAVIGATION" in response):
+                            print(f"Found navigation controller on {port}")
+                            break
+                        else:
+                            nav_ser.close()
+                            nav_ser = None
+            
+            if not nav_ser:
+                print("Could not auto-detect navigation controller. Please specify with --nav-port")
     
     # Connect to arm controller
     arm_ser = None
     if args.arm:
-        if args.arm_port:
+        if args.esp_now:
+            print("ARM controller communicates via ESP-NOW through the NAV controller")
+            arm_ser = nav_ser  # Use the same serial connection as NAV
+        elif args.arm_port:
             arm_ser = connect_to_port(args.arm_port)
         else:
-            print("No arm port specified. Please use --arm-port")
+            # Try to auto-detect ARM controller (only if not using ESP-NOW)
+            for port in available_ports:
+                if port != (nav_ser.port if nav_ser else None) and ('USB' in port or 'ACM' in port):
+                    print(f"Trying {port} for arm controller...")
+                    arm_ser = connect_to_port(port)
+                    if arm_ser:
+                        # Test if this is the ARM controller
+                        response = send_command(arm_ser, "IDENTIFY", logger)
+                        if response and ("ARM" in response or "GRIPPER" in response):
+                            print(f"Found arm controller on {port}")
+                            break
+                        else:
+                            arm_ser.close()
+                            arm_ser = None
+            
+            if not arm_ser and args.arm:
+                print("Could not auto-detect arm controller. Please specify with --arm-port or use --esp-now if it communicates via ESP-NOW")
     
     # Test navigation motors
     if args.nav and nav_ser:
         test_nav_motors(nav_ser, logger)
+    elif args.nav:
+        print("Navigation controller not available for testing")
     
     # Test arm motors
-    if args.arm and arm_ser:
+    if args.arm and args.esp_now and nav_ser:
+        print("\n=== Testing ARM Motors via ESP-NOW ===")
+        print("Sending commands through NAV controller to ARM via ESP-NOW")
+        # Special commands for ESP-NOW communication
+        send_command(nav_ser, "ESP_NOW:ARM:TEST", logger, wait_time=1.0)
+        time.sleep(5)  # Give time for ESP-NOW communication
+    elif args.arm and arm_ser:
         test_arm_motors(arm_ser, logger)
+    elif args.arm:
+        print("Arm controller not available for testing")
     
     # Close serial ports
     if nav_ser:
         nav_ser.close()
-    if arm_ser:
+    if arm_ser and arm_ser != nav_ser:  # Don't close twice if they're the same
         arm_ser.close()
 
 if __name__ == "__main__":

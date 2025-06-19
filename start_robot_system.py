@@ -71,6 +71,8 @@ if __name__ == "__main__":
                         help='Test only navigation motors')
     parser.add_argument('--test-arm', action='store_true',
                         help='Test only arm motors')
+    parser.add_argument('--esp-now', action='store_true',
+                        help='ARM controller communicates via ESP-NOW through NAV controller')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
@@ -81,6 +83,7 @@ if __name__ == "__main__":
     test_motors = args.test_motors
     test_nav = args.test_nav
     test_arm = args.test_arm
+    esp_now = args.esp_now
     
     # Set environment variables for ports if specified
     env_vars = {}
@@ -103,6 +106,8 @@ if __name__ == "__main__":
             cmd.append(f"--nav-port={nav_port}")
         if arm_port:
             cmd.append(f"--arm-port={arm_port}")
+        if esp_now:
+            cmd.append("--esp-now")
             
         try:
             print(f"Running command: {' '.join(cmd)}")
