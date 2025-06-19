@@ -110,33 +110,76 @@ def test_nav_motors(ser, logger=None):
         send_command(ser, "No_Emergency", logger, wait_time=1.0)
         time.sleep(1)
         
-        # Test forward movement
-        print("Moving forward for 2 seconds...")
+        # Test direct motor control commands
+        print("Testing left motors forward (3 seconds)...")
+        send_command(ser, "MOTOR:LEFT:FORWARD", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop left motors
+        print("Stopping left motors...")
+        send_command(ser, "MOTOR:LEFT:STOP", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test right motors forward
+        print("Testing right motors forward (3 seconds)...")
+        send_command(ser, "MOTOR:RIGHT:FORWARD", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop right motors
+        print("Stopping right motors...")
+        send_command(ser, "MOTOR:RIGHT:STOP", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test all motors forward (standard IR:ON command)
+        print("Testing all motors forward with IR:ON (3 seconds)...")
         send_command(ser, "IR:ON", logger, wait_time=1.0)
-        time.sleep(2)
+        time.sleep(3)
         
-        # Stop
-        print("Stopping...")
+        # Stop all motors
+        print("Stopping all motors with IR:OFF...")
         send_command(ser, "IR:OFF", logger, wait_time=1.0)
         time.sleep(1)
         
-        # Test left turn
-        print("Turning left for 2 seconds...")
+        # Test left turn using direct motor control
+        print("Testing left turn (right motors forward, left motors backward) for 3 seconds...")
+        send_command(ser, "MOTOR:LEFT:BACKWARD", logger, wait_time=0.5)
+        send_command(ser, "MOTOR:RIGHT:FORWARD", logger, wait_time=0.5)
+        time.sleep(3)
+        
+        # Stop all motors
+        print("Stopping all motors...")
+        send_command(ser, "MOTOR:LEFT:STOP", logger, wait_time=0.5)
+        send_command(ser, "MOTOR:RIGHT:STOP", logger, wait_time=0.5)
+        time.sleep(1)
+        
+        # Test right turn using direct motor control
+        print("Testing right turn (left motors forward, right motors backward) for 3 seconds...")
+        send_command(ser, "MOTOR:LEFT:FORWARD", logger, wait_time=0.5)
+        send_command(ser, "MOTOR:RIGHT:BACKWARD", logger, wait_time=0.5)
+        time.sleep(3)
+        
+        # Stop all motors
+        print("Stopping all motors...")
+        send_command(ser, "MOTOR:LEFT:STOP", logger, wait_time=0.5)
+        send_command(ser, "MOTOR:RIGHT:STOP", logger, wait_time=0.5)
+        
+        # Try using the standard turn commands as well
+        print("Testing standard TURN_LEFT command (3 seconds)...")
         send_command(ser, "TURN_LEFT", logger, wait_time=1.0)
-        time.sleep(2)
+        time.sleep(3)
         
         # Stop
-        print("Stopping...")
+        print("Stopping with IR:OFF...")
         send_command(ser, "IR:OFF", logger, wait_time=1.0)
         time.sleep(1)
         
-        # Test right turn
-        print("Turning right for 2 seconds...")
+        # Try right turn command
+        print("Testing standard TURN_RIGHT command (3 seconds)...")
         send_command(ser, "TURN_RIGHT", logger, wait_time=1.0)
-        time.sleep(2)
+        time.sleep(3)
         
         # Stop
-        print("Stopping...")
+        print("Stopping with IR:OFF...")
         send_command(ser, "IR:OFF", logger, wait_time=1.0)
         
         print("Navigation motor test complete")
@@ -205,6 +248,175 @@ def test_arm_motors(ser, logger=None):
         print(f"Error testing arm motors: {e}")
         return False
 
+def test_esp_now_arm(ser, logger=None):
+    """Test ARM motors via ESP-NOW communication"""
+    print("\n=== Testing ARM Motors via ESP-NOW ===")
+    print("Sending commands through NAV controller to ARM via ESP-NOW")
+    
+    if not ser:
+        print("NAV controller not connected")
+        return False
+    
+    try:
+        # First clear any emergency state
+        print("Clearing emergency status...")
+        send_command(ser, "ESP_NOW:ARM:No_Emergency", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test motor 5 (forward)
+        print("Testing ARM motor 5 forward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:FWD5", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 5
+        print("Stopping ARM motor 5...")
+        send_command(ser, "ESP_NOW:ARM:FWD5", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test motor 5 (backward)
+        print("Testing ARM motor 5 backward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:BACK5", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 5
+        print("Stopping ARM motor 5...")
+        send_command(ser, "ESP_NOW:ARM:BACK5", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test motor 6 (forward)
+        print("Testing ARM motor 6 forward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:FWD6", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 6
+        print("Stopping ARM motor 6...")
+        send_command(ser, "ESP_NOW:ARM:FWD6", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test motor 6 (backward)
+        print("Testing ARM motor 6 backward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:BACK6", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 6
+        print("Stopping ARM motor 6...")
+        send_command(ser, "ESP_NOW:ARM:BACK6", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test motor 7 (forward)
+        print("Testing ARM motor 7 forward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:FWD7", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 7
+        print("Stopping ARM motor 7...")
+        send_command(ser, "ESP_NOW:ARM:FWD7", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test motor 7 (backward)
+        print("Testing ARM motor 7 backward via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:BACK7", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop motor 7
+        print("Stopping ARM motor 7...")
+        send_command(ser, "ESP_NOW:ARM:BACK7", logger, wait_time=1.0)  # Toggle to stop
+        time.sleep(1)
+        
+        # Test gripper (open)
+        print("Testing ARM gripper open via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:RELEASE", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Test gripper (close)
+        print("Testing ARM gripper close via ESP-NOW...")
+        send_command(ser, "ESP_NOW:ARM:GRAB", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        print("ARM ESP-NOW test complete")
+        return True
+        
+    except Exception as e:
+        print(f"Error testing ARM via ESP-NOW: {e}")
+        return False
+
+def test_alternative_nav_commands(ser, logger=None):
+    """Test alternative navigation motor commands that might work with specific ESP32 firmware"""
+    print("\n=== Testing Alternative Navigation Commands ===")
+    
+    if not ser:
+        print("Navigation controller not connected")
+        return False
+    
+    try:
+        # First clear any emergency state
+        print("Clearing emergency status...")
+        send_command(ser, "No_Emergency", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test alternative forward command
+        print("Testing forward movement with M1_ON command (3 seconds)...")
+        send_command(ser, "M1_ON", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop
+        print("Stopping with M1_OFF...")
+        send_command(ser, "M1_OFF", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test direct motor pin control
+        print("Testing direct pin control for motors...")
+        send_command(ser, "PIN:12:HIGH", logger, wait_time=0.5)  # Example pin number
+        send_command(ser, "PIN:13:HIGH", logger, wait_time=0.5)  # Example pin number
+        time.sleep(3)
+        
+        # Stop motors
+        print("Stopping motors with direct pin control...")
+        send_command(ser, "PIN:12:LOW", logger, wait_time=0.5)
+        send_command(ser, "PIN:13:LOW", logger, wait_time=0.5)
+        time.sleep(1)
+        
+        # Test ESP32 specific commands
+        print("Testing ESP32-specific motor commands...")
+        
+        # Try different formats to see what works
+        commands_to_try = [
+            "MOTORS:FORWARD",
+            "FORWARD",
+            "MOVE_FORWARD",
+            "GO_FORWARD",
+            "MOTORS:ALL:ON",
+            "MOTORS:ON",
+            "DRIVE:FORWARD",
+            "FWD",
+            "MOTORS:FWD",
+            "MOTORS:1:FWD,2:FWD,3:FWD,4:FWD"  # Try addressing individual motors
+        ]
+        
+        for cmd in commands_to_try:
+            print(f"Trying command: {cmd}")
+            send_command(ser, cmd, logger, wait_time=1.0)
+            time.sleep(2)
+            
+            # Stop after each command
+            print("Stopping motors...")
+            send_command(ser, "IR:OFF", logger, wait_time=1.0)
+            time.sleep(1)
+        
+        print("Alternative command test complete")
+        return True
+        
+    except Exception as e:
+        print(f"Error testing alternative commands: {e}")
+        return False
+    finally:
+        # Make sure motors are stopped
+        try:
+            send_command(ser, "IR:OFF", logger, wait_time=1.0)
+            print("Motors stopped")
+        except:
+            print("Warning: Could not send final stop command")
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description='Test ESP32 motors directly')
@@ -214,6 +426,7 @@ def main():
     parser.add_argument('--arm-port', help='Serial port for arm controller')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--esp-now', action='store_true', help='ARM controller communicates via ESP-NOW through NAV')
+    parser.add_argument('--alt-commands', action='store_true', help='Try alternative motor control commands')
     args = parser.parse_args()
     
     # If no specific test is selected, test both
@@ -281,17 +494,16 @@ def main():
     
     # Test navigation motors
     if args.nav and nav_ser:
-        test_nav_motors(nav_ser, logger)
+        if args.alt_commands:
+            test_alternative_nav_commands(nav_ser, logger)
+        else:
+            test_nav_motors(nav_ser, logger)
     elif args.nav:
         print("Navigation controller not available for testing")
     
     # Test arm motors
     if args.arm and args.esp_now and nav_ser:
-        print("\n=== Testing ARM Motors via ESP-NOW ===")
-        print("Sending commands through NAV controller to ARM via ESP-NOW")
-        # Special commands for ESP-NOW communication
-        send_command(nav_ser, "ESP_NOW:ARM:TEST", logger, wait_time=1.0)
-        time.sleep(5)  # Give time for ESP-NOW communication
+        test_esp_now_arm(nav_ser, logger)
     elif args.arm and arm_ser:
         test_arm_motors(arm_ser, logger)
     elif args.arm:
