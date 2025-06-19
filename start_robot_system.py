@@ -65,6 +65,12 @@ if __name__ == "__main__":
                         help='Specify serial port for navigation controller (e.g., /dev/ttyUSB0)')
     parser.add_argument('--arm-port', 
                         help='Specify serial port for arm controller (e.g., /dev/ttyACM0)')
+    parser.add_argument('--test-motors', action='store_true',
+                        help='Test motors directly without starting the full system')
+    parser.add_argument('--test-nav', action='store_true',
+                        help='Test only navigation motors')
+    parser.add_argument('--test-arm', action='store_true',
+                        help='Test only arm motors')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
@@ -72,6 +78,9 @@ if __name__ == "__main__":
     debug_mode = args.debug
     nav_port = args.nav_port
     arm_port = args.arm_port
+    test_motors = args.test_motors
+    test_nav = args.test_nav
+    test_arm = args.test_arm
     
     # Set environment variables for ports if specified
     env_vars = {}
@@ -79,6 +88,29 @@ if __name__ == "__main__":
         env_vars["NAV_PORT"] = nav_port
     if arm_port:
         env_vars["ARM_PORT"] = arm_port
+    
+    # If testing motors directly, run a different script
+    if test_motors or test_nav or test_arm:
+        print("Running motor test mode...")
+        cmd = [sys.executable, "test_motors.py"]
+        if test_nav:
+            cmd.append("--nav")
+        if test_arm:
+            cmd.append("--arm")
+        if debug_mode:
+            cmd.append("--debug")
+        if nav_port:
+            cmd.append(f"--nav-port={nav_port}")
+        if arm_port:
+            cmd.append(f"--arm-port={arm_port}")
+            
+        try:
+            print(f"Running command: {' '.join(cmd)}")
+            subprocess.run(cmd)
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error running motor test: {e}")
+            sys.exit(1)
     
     processes = []
     

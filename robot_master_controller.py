@@ -20,6 +20,8 @@ import random
 import os
 import logging
 import glob
+import signal
+import sys
 
 class RobotMasterController:
     def __init__(self, simulation_mode=False):
@@ -566,31 +568,53 @@ class RobotMasterController:
             print("Navigation controller not connected!")
             return "ERROR:NOT_CONNECTED"
         
-        # Format command according to the new ESP32 NAV code
+        # Format command according to the ESP32 NAV code
+        # Based on the logs, we need to send direct commands that match the ESP32 code
         if action == "MOVE":
-            command = "IR:ON\n"  # Start motors
+            # Start motors - Match the command format in ESP32 NAV code
+            command = "IR:ON\n"
         elif action == "STOP":
-            command = "IR:OFF\n"  # Stop motors
+            # Stop motors
+            command = "IR:OFF\n"
+        elif action == "TURN_LEFT":
+            # Special command for turning left
+            command = "TURN_LEFT\n"
+        elif action == "TURN_RIGHT":
+            # Special command for turning right
+            command = "TURN_RIGHT\n"
         else:
             # Default format for other commands
-            command = f"{action}:{param1}:{param2}\n"
-        
+            command = f"{action}\n"
+            
         # Log command if in debug mode
         if self.debug_mode:
             self.logger.debug(f"NAV SEND: {command.strip()}")
             
+        # Clear input buffer before sending command
+        self.nav_uart.reset_input_buffer()
+            
+        # Send the command
         self.nav_uart.write(command.encode())
         
         # Wait for response
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                response = self.nav_response_queue.get(timeout=0.1)
+                if self.nav_uart.in_waiting:
+                    response = self.nav_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"NAV RESPONSE: {response}")
+                    
+                    # If we got a response, return it
+                    if response:
+                        return response
+                else:
+                    # Wait a bit before checking again
+                    time.sleep(0.1)
+            except Exception as e:
                 if self.debug_mode:
-                    self.logger.debug(f"NAV RESPONSE: {response}")
-                return response
-            except queue.Empty:
-                continue
+                    self.logger.error(f"Error reading from NAV: {e}")
+                break
         
         if self.debug_mode:
             self.logger.warning(f"NAV TIMEOUT: No response received for {command.strip()}")
@@ -643,7 +667,8 @@ class RobotMasterController:
             print("Arm controller not connected!")
             return "ERROR:NOT_CONNECTED"
             
-        # Format command according to the new ESP32 ARM code
+        # Format command according to the ESP32 ARM code
+        # Based on the logs, we need to send direct commands that match the ESP32 code
         if action == "GRIP":
             if param1 == "OPEN":
                 command = "RELEASE\n"  # Release command
@@ -655,6 +680,11 @@ class RobotMasterController:
             command = "Emergency\n"  # Emergency stop
         elif action == "CLEAR_EMERGENCY":
             command = "No_Emergency\n"  # Clear emergency
+        elif action == "MOVE_MOTOR":
+            # Format for moving specific motors
+            motor_num = param1  # Motor number (5, 6, or 7)
+            direction = param2  # FWD or BACK
+            command = f"{direction}{motor_num}\n"
         else:
             # Default format for other commands
             command = f"{action}\n"
@@ -662,19 +692,32 @@ class RobotMasterController:
         # Log command if in debug mode
         if self.debug_mode:
             self.logger.debug(f"ARM SEND: {command.strip()}")
+        
+        # Clear input buffer before sending command
+        self.arm_uart.reset_input_buffer()
             
+        # Send the command
         self.arm_uart.write(command.encode())
         
         # Wait for response
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                response = self.arm_response_queue.get(timeout=0.1)
+                if self.arm_uart.in_waiting:
+                    response = self.arm_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"ARM RESPONSE: {response}")
+                    
+                    # If we got a response, return it
+                    if response:
+                        return response
+                else:
+                    # Wait a bit before checking again
+                    time.sleep(0.1)
+            except Exception as e:
                 if self.debug_mode:
-                    self.logger.debug(f"ARM RESPONSE: {response}")
-                return response
-            except queue.Empty:
-                continue
+                    self.logger.error(f"Error reading from ARM: {e}")
+                break
         
         if self.debug_mode:
             self.logger.warning(f"ARM TIMEOUT: No response received for {command.strip()}")
@@ -1280,6 +1323,15 @@ class RobotMasterController:
         status_thread = threading.Thread(target=self.status_update_thread, daemon=True)
         status_thread.start()
         
+        # Set up signal handler for graceful shutdown
+        def signal_handler(sig, frame):
+            print("\nReceived interrupt signal, shutting down gracefully...")
+            self.shutdown()
+            sys.exit(0)
+            
+        # Register signal handler for Ctrl+C
+        signal.signal(signal.SIGINT, signal_handler)
+        
         # Main loop
         try:
             while True:
@@ -1314,8 +1366,11 @@ class RobotMasterController:
                 time.sleep(0.1)
                 
         except KeyboardInterrupt:
-            print("Main loop interrupted")
-            return
+            print("\nKeyboard interrupt received in main loop, shutting down...")
+            self.shutdown()
+        except Exception as e:
+            print(f"Error in main loop: {e}")
+            self.shutdown()
     
     def status_update_thread(self):
         """Thread to periodically update web server status"""
@@ -1745,6 +1800,97 @@ class RobotMasterController:
                 print(f"Error testing arm controller: {e}")
         else:
             print("Arm controller not connected, skipping test")
+
+    def test_nav_motors(self):
+        """Test navigation motors directly"""
+        print("Testing navigation motors...")
+        
+        if not self.nav_uart:
+            print("Navigation controller not connected!")
+            return False
+            
+        try:
+            # Test sequence: forward, stop, turn left, stop, turn right, stop
+            print("Moving forward for 2 seconds...")
+            self.send_nav_command("IR:ON")
+            time.sleep(2)
+            
+            print("Stopping...")
+            self.send_nav_command("IR:OFF")
+            time.sleep(1)
+            
+            print("Turning left for 2 seconds...")
+            self.send_nav_command("TURN_LEFT")
+            time.sleep(2)
+            
+            print("Stopping...")
+            self.send_nav_command("IR:OFF")
+            
+            print("Turning right for 2 seconds...")
+            self.send_nav_command("TURN_RIGHT")
+            time.sleep(2)
+            
+            print("Stopping...")
+            self.send_nav_command("IR:OFF")
+            
+            print("Navigation motor test complete")
+            return True
+            
+        except Exception as e:
+            print(f"Error testing navigation motors: {e}")
+            return False
+            
+    def test_arm_motors(self):
+        """Test arm motors directly"""
+        print("Testing arm motors...")
+        
+        if not self.arm_uart:
+            print("Arm controller not connected!")
+            return False
+            
+        try:
+            # First send No_Emergency to ensure the arm will respond
+            print("Clearing emergency status...")
+            self.send_arm_command("No_Emergency")
+            time.sleep(1)
+            
+            # Test each motor individually
+            for motor_num in [5, 6, 7]:
+                # Forward
+                print(f"Moving motor {motor_num} forward...")
+                self.send_arm_command("MOVE_MOTOR", str(motor_num), "FWD")
+                time.sleep(2)
+                
+                # Stop
+                print(f"Stopping motor {motor_num}...")
+                self.send_arm_command("STOP")
+                time.sleep(1)
+                
+                # Backward
+                print(f"Moving motor {motor_num} backward...")
+                self.send_arm_command("MOVE_MOTOR", str(motor_num), "BACK")
+                time.sleep(2)
+                
+                # Stop
+                print(f"Stopping motor {motor_num}...")
+                self.send_arm_command("STOP")
+                time.sleep(1)
+            
+            # Test gripper
+            print("Opening gripper...")
+            self.send_arm_command("RELEASE")
+            time.sleep(2)
+            
+            print("Closing gripper...")
+            self.send_arm_command("GRAB")
+            time.sleep(2)
+            
+            print("Arm motor test complete")
+            return True
+            
+        except Exception as e:
+            print(f"Error testing arm motors: {e}")
+            return False
 
 if __name__ == "__main__":
     robot = None
