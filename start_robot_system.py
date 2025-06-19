@@ -13,7 +13,7 @@ import argparse
 import signal
 import atexit
 
-def start_robot_controller(simulation=True, skip_camera=False, debug=False):
+def start_robot_controller(simulation=True, skip_camera=False, debug=False, env_vars=None):
     """Start the robot master controller in a separate process"""
     cmd = [sys.executable, "robot_master_controller.py"]
     if simulation:
@@ -25,7 +25,13 @@ def start_robot_controller(simulation=True, skip_camera=False, debug=False):
     if skip_camera:
         env["SKIP_CAMERA"] = "1"
     
+    # Add any additional environment variables
+    if env_vars:
+        env.update(env_vars)
+    
     print(f"Starting robot controller: {' '.join(cmd)}")
+    if env_vars:
+        print(f"With environment variables: {env_vars}")
     return subprocess.Popen(cmd, env=env)
 
 def start_web_server():
@@ -55,11 +61,24 @@ if __name__ == "__main__":
                         help='Skip camera detection (useful for headless operation)')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging for ESP32 communication')
+    parser.add_argument('--nav-port', 
+                        help='Specify serial port for navigation controller (e.g., /dev/ttyUSB0)')
+    parser.add_argument('--arm-port', 
+                        help='Specify serial port for arm controller (e.g., /dev/ttyACM0)')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
     skip_camera = args.skip_camera
     debug_mode = args.debug
+    nav_port = args.nav_port
+    arm_port = args.arm_port
+    
+    # Set environment variables for ports if specified
+    env_vars = {}
+    if nav_port:
+        env_vars["NAV_PORT"] = nav_port
+    if arm_port:
+        env_vars["ARM_PORT"] = arm_port
     
     processes = []
     
@@ -68,7 +87,7 @@ if __name__ == "__main__":
         atexit.register(cleanup_processes, processes)
         
         # Start robot controller
-        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera, debug=debug_mode)
+        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera, debug=debug_mode, env_vars=env_vars)
         processes.append(controller_process)
         
         # Give the controller a moment to initialize

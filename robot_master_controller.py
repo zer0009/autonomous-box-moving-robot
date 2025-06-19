@@ -19,6 +19,7 @@ import math
 import random
 import os
 import logging
+import glob
 
 class RobotMasterController:
     def __init__(self, simulation_mode=False):
@@ -42,6 +43,9 @@ class RobotMasterController:
         # Try to establish UART connections if not in simulation mode
         if not self.simulation_mode:
             self.connect_uart_devices()
+            # Test communication with connected ESP32 devices
+            if self.nav_uart or self.arm_uart:
+                self.test_esp32_communication()
         else:
             print("Running in SIMULATION MODE - No hardware connections required")
         
@@ -110,29 +114,114 @@ class RobotMasterController:
     
     def connect_uart_devices(self):
         """Attempt to connect to ESP32 controllers via UART with retry"""
-        # Navigation controller connection
-        uart_ports = ['/dev/ttyAMA0', '/dev/ttyUSB0', '/dev/ttyUSB1', 'COM3', 'COM4']
+        # Check for environment variables specifying ports
+        nav_port_env = os.environ.get('NAV_PORT')
+        arm_port_env = os.environ.get('ARM_PORT')
         
-        # Try to connect to navigation controller
-        for port in uart_ports:
-            try:
-                print(f"Trying navigation controller on {port}...")
-                self.nav_uart = serial.Serial(port, 9600, timeout=1)  # Updated to 9600 baud
-                print(f"Connected to navigation controller on {port}")
-                break
-            except Exception as e:
-                print(f"Failed to connect to {port}: {e}")
+        if nav_port_env or arm_port_env:
+            print(f"Using ports specified in environment variables:")
+            if nav_port_env:
+                print(f"  Navigation controller: {nav_port_env}")
+            if arm_port_env:
+                print(f"  Arm controller: {arm_port_env}")
         
-        # Try to connect to arm controller
-        arm_ports = [p for p in uart_ports if p != (self.nav_uart.port if self.nav_uart else None)]
-        for port in arm_ports:
+        # Get list of available serial ports
+        available_ports = []
+        
+        # Check common Linux/Raspberry Pi serial ports
+        linux_ports = glob.glob('/dev/tty*')
+        available_ports.extend(linux_ports)
+        
+        # Add common port patterns
+        uart_ports = [
+            # Raspberry Pi ports
+            '/dev/ttyAMA0', '/dev/ttyS0', 
+            # USB-to-serial adapters on Raspberry Pi
+            '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyUSB2',
+            # CH340 and CP210x adapters common with ESP32
+            '/dev/ttyACM0', '/dev/ttyACM1',
+            # Windows ports (for development)
+            'COM3', 'COM4', 'COM5', 'COM6', 'COM7'
+        ]
+        
+        # Filter available ports to only include TTY devices
+        available_tty_ports = [p for p in available_ports if 'tty' in p]
+        
+        # Log available ports
+        if self.debug_mode:
+            self.logger.debug(f"Available serial ports: {available_tty_ports}")
+            
+        print(f"Available serial ports: {available_tty_ports}")
+        
+        # Try to connect using environment variables first
+        if nav_port_env:
             try:
-                print(f"Trying arm controller on {port}...")
-                self.arm_uart = serial.Serial(port, 9600, timeout=1)  # Updated to 9600 baud
-                print(f"Connected to arm controller on {port}")
-                break
+                print(f"Connecting to navigation controller on {nav_port_env} (from environment)...")
+                self.nav_uart = serial.Serial(nav_port_env, 9600, timeout=1)
+                print(f"Connected to navigation controller on {nav_port_env}")
             except Exception as e:
-                print(f"Failed to connect to {port}: {e}")
+                print(f"Failed to connect to {nav_port_env}: {e}")
+        
+        if arm_port_env:
+            try:
+                print(f"Connecting to arm controller on {arm_port_env} (from environment)...")
+                self.arm_uart = serial.Serial(arm_port_env, 9600, timeout=1)
+                print(f"Connected to arm controller on {arm_port_env}")
+            except Exception as e:
+                print(f"Failed to connect to {arm_port_env}: {e}")
+        
+        # If we still need to detect devices, proceed with auto-detection
+        if not self.nav_uart or not self.arm_uart:
+            # First, try to auto-detect ESP32 devices
+            print("Attempting to auto-detect ESP32 devices...")
+            
+            # Try to identify devices on available ports
+            for port in available_tty_ports:
+                if self.nav_uart and self.arm_uart:
+                    break  # Both controllers found
+                    
+                try:
+                    device_type, ser = self.identify_esp32_device(port)
+                    
+                    if device_type == "NAV" and not self.nav_uart:
+                        self.nav_uart = ser
+                        print(f"Auto-detected navigation controller on {port}")
+                    elif device_type == "ARM" and not self.arm_uart:
+                        self.arm_uart = ser
+                        print(f"Auto-detected arm controller on {port}")
+                    elif device_type == "UNKNOWN" and ser:
+                        ser.close()  # Close the port if we couldn't identify the device
+                except Exception as e:
+                    print(f"Error checking port {port}: {e}")
+            
+            # If auto-detection failed, try manual connection
+            if not self.nav_uart or not self.arm_uart:
+                print("Auto-detection incomplete, trying manual connection...")
+                
+                # Try to connect to navigation controller if not already connected
+                if not self.nav_uart:
+                    for port in uart_ports:
+                        if port in available_tty_ports:  # Only try ports that actually exist
+                            try:
+                                print(f"Trying navigation controller on {port}...")
+                                self.nav_uart = serial.Serial(port, 9600, timeout=1)
+                                print(f"Connected to navigation controller on {port}")
+                                break
+                            except Exception as e:
+                                print(f"Failed to connect to {port}: {e}")
+                
+                # Try to connect to arm controller if not already connected
+                if not self.arm_uart:
+                    arm_ports = [p for p in uart_ports if p != (self.nav_uart.port if self.nav_uart else None)]
+                    for port in arm_ports:
+                        if port in available_tty_ports:  # Only try ports that actually exist
+                            try:
+                                print(f"Trying arm controller on {port}...")
+                                self.arm_uart = serial.Serial(port, 9600, timeout=1)
+                                print(f"Connected to arm controller on {port}")
+                                break
+                            except Exception as e:
+                                print(f"Failed to connect to {port}: {e}")
         
         # Check if both connections established
         if not self.nav_uart:
@@ -1538,6 +1627,124 @@ class RobotMasterController:
             "right_outer": -1,
             "raw": [-1, -1, -1, -1, -1]
         }
+
+    def identify_esp32_device(self, port):
+        """Try to identify which ESP32 device is connected to a port (NAV or ARM)"""
+        try:
+            # Open the port
+            ser = serial.Serial(port, 9600, timeout=2)
+            
+            # Clear any pending data
+            ser.reset_input_buffer()
+            
+            # Send identification request
+            if self.debug_mode:
+                self.logger.debug(f"Sending identification request to {port}")
+            
+            # Try to identify by sending a command and checking response
+            ser.write("IDENTIFY\n".encode())
+            time.sleep(1)
+            
+            # Read response
+            response = ser.readline().decode().strip()
+            if self.debug_mode:
+                self.logger.debug(f"Response from {port}: {response}")
+            
+            # Check response to identify device type
+            if "NAV" in response or "NAVIGATION" in response:
+                print(f"Identified navigation controller on {port}")
+                return "NAV", ser
+            elif "ARM" in response or "GRIPPER" in response:
+                print(f"Identified arm controller on {port}")
+                return "ARM", ser
+            else:
+                # If no specific identifier, try specific commands for each type
+                # Try NAV-specific command
+                ser.reset_input_buffer()
+                ser.write("GET_ULTRASONIC\n".encode())
+                time.sleep(1)
+                response = ser.readline().decode().strip()
+                
+                if "ULTRASONIC" in response or response.startswith("IR:"):
+                    print(f"Identified navigation controller on {port} by command response")
+                    return "NAV", ser
+                
+                # Try ARM-specific command
+                ser.reset_input_buffer()
+                ser.write("CHECK_IR\n".encode())
+                time.sleep(1)
+                response = ser.readline().decode().strip()
+                
+                if "IR_STATUS" in response:
+                    print(f"Identified arm controller on {port} by command response")
+                    return "ARM", ser
+            
+            # If we couldn't identify, close the port
+            ser.close()
+            return "UNKNOWN", None
+            
+        except Exception as e:
+            if self.debug_mode:
+                self.logger.error(f"Error identifying device on {port}: {e}")
+            return "ERROR", None
+
+    def test_esp32_communication(self):
+        """Test communication with connected ESP32 devices"""
+        print("Testing communication with ESP32 devices...")
+        
+        # Test navigation controller
+        if self.nav_uart:
+            try:
+                print("Testing navigation controller...")
+                # Clear any pending data
+                self.nav_uart.reset_input_buffer()
+                
+                # Send test command
+                test_cmd = "IR:OFF\n"
+                if self.debug_mode:
+                    self.logger.debug(f"NAV TEST SEND: {test_cmd.strip()}")
+                self.nav_uart.write(test_cmd.encode())
+                
+                # Wait for response
+                time.sleep(1)
+                if self.nav_uart.in_waiting:
+                    response = self.nav_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"NAV TEST RECV: {response}")
+                    print(f"Navigation controller responded: {response}")
+                else:
+                    print("Navigation controller did not respond to test command")
+            except Exception as e:
+                print(f"Error testing navigation controller: {e}")
+        else:
+            print("Navigation controller not connected, skipping test")
+        
+        # Test arm controller
+        if self.arm_uart:
+            try:
+                print("Testing arm controller...")
+                # Clear any pending data
+                self.arm_uart.reset_input_buffer()
+                
+                # Send test command
+                test_cmd = "No_Emergency\n"
+                if self.debug_mode:
+                    self.logger.debug(f"ARM TEST SEND: {test_cmd.strip()}")
+                self.arm_uart.write(test_cmd.encode())
+                
+                # Wait for response
+                time.sleep(1)
+                if self.arm_uart.in_waiting:
+                    response = self.arm_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"ARM TEST RECV: {response}")
+                    print(f"Arm controller responded: {response}")
+                else:
+                    print("Arm controller did not respond to test command")
+            except Exception as e:
+                print(f"Error testing arm controller: {e}")
+        else:
+            print("Arm controller not connected, skipping test")
 
 if __name__ == "__main__":
     robot = None
