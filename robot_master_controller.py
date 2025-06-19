@@ -18,15 +18,26 @@ import heapq
 import math
 import random
 import os
+import logging
 
 class RobotMasterController:
     def __init__(self, simulation_mode=False):
         # Simulation mode flag
         self.simulation_mode = simulation_mode
         
+        # Debug mode flag
+        self.debug_mode = False
+        
+        # Set up logger
+        self.logger = logging.getLogger("RobotController")
+        
         # UART connections to ESP32 controllers with retry mechanism
         self.nav_uart = None
         self.arm_uart = None
+        
+        # Response queues for async communication
+        self.nav_response_queue = queue.Queue()
+        self.arm_response_queue = queue.Queue()
         
         # Try to establish UART connections if not in simulation mode
         if not self.simulation_mode:
@@ -84,10 +95,6 @@ class RobotMasterController:
         # Robot state (update to track multiple box carrying)
         self.carrying_boxes = []  # List of boxes currently being carried
         
-        # Command queues
-        self.nav_response_queue = queue.Queue()
-        self.arm_response_queue = queue.Queue()
-        
         # Database setup
         self.init_database()
         
@@ -110,7 +117,7 @@ class RobotMasterController:
         for port in uart_ports:
             try:
                 print(f"Trying navigation controller on {port}...")
-                self.nav_uart = serial.Serial(port, 115200, timeout=1)
+                self.nav_uart = serial.Serial(port, 9600, timeout=1)  # Updated to 9600 baud
                 print(f"Connected to navigation controller on {port}")
                 break
             except Exception as e:
@@ -121,7 +128,7 @@ class RobotMasterController:
         for port in arm_ports:
             try:
                 print(f"Trying arm controller on {port}...")
-                self.arm_uart = serial.Serial(port, 115200, timeout=1)
+                self.arm_uart = serial.Serial(port, 9600, timeout=1)  # Updated to 9600 baud
                 print(f"Connected to arm controller on {port}")
                 break
             except Exception as e:
@@ -334,9 +341,14 @@ class RobotMasterController:
             try:
                 if self.nav_uart and self.nav_uart.in_waiting:
                     response = self.nav_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"NAV RECV: {response}")
                     self.nav_response_queue.put(response)
             except Exception as e:
-                print(f"Nav UART error: {e}")
+                if self.debug_mode:
+                    self.logger.error(f"Nav UART error: {e}")
+                else:
+                    print(f"Nav UART error: {e}")
                 # Try to reconnect
                 try:
                     self.nav_uart.close()
@@ -351,9 +363,14 @@ class RobotMasterController:
             try:
                 if self.arm_uart and self.arm_uart.in_waiting:
                     response = self.arm_uart.readline().decode().strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"ARM RECV: {response}")
                     self.arm_response_queue.put(response)
             except Exception as e:
-                print(f"Arm UART error: {e}")
+                if self.debug_mode:
+                    self.logger.error(f"Arm UART error: {e}")
+                else:
+                    print(f"Arm UART error: {e}")
                 # Try to reconnect
                 try:
                     self.arm_uart.close()
@@ -459,8 +476,20 @@ class RobotMasterController:
         elif not self.nav_uart:
             print("Navigation controller not connected!")
             return "ERROR:NOT_CONNECTED"
+        
+        # Format command according to the new ESP32 NAV code
+        if action == "MOVE":
+            command = "IR:ON\n"  # Start motors
+        elif action == "STOP":
+            command = "IR:OFF\n"  # Stop motors
+        else:
+            # Default format for other commands
+            command = f"{action}:{param1}:{param2}\n"
+        
+        # Log command if in debug mode
+        if self.debug_mode:
+            self.logger.debug(f"NAV SEND: {command.strip()}")
             
-        command = f"NAV:{action}:{param1}:{param2}\n"
         self.nav_uart.write(command.encode())
         
         # Wait for response
@@ -468,9 +497,14 @@ class RobotMasterController:
         while time.time() - start_time < timeout:
             try:
                 response = self.nav_response_queue.get(timeout=0.1)
+                if self.debug_mode:
+                    self.logger.debug(f"NAV RESPONSE: {response}")
                 return response
             except queue.Empty:
                 continue
+        
+        if self.debug_mode:
+            self.logger.warning(f"NAV TIMEOUT: No response received for {command.strip()}")
         return "TIMEOUT"
     
     def send_arm_command(self, action, param1="", param2="", timeout=15):
@@ -520,7 +554,26 @@ class RobotMasterController:
             print("Arm controller not connected!")
             return "ERROR:NOT_CONNECTED"
             
-        command = f"ARM:{action}:{param1}:{param2}\n"
+        # Format command according to the new ESP32 ARM code
+        if action == "GRIP":
+            if param1 == "OPEN":
+                command = "RELEASE\n"  # Release command
+            else:
+                command = "GRAB\n"  # Grab command
+        elif action == "CHECK_IR":
+            command = "CHECK_IR\n"  # Check IR sensors
+        elif action == "EMERGENCY":
+            command = "Emergency\n"  # Emergency stop
+        elif action == "CLEAR_EMERGENCY":
+            command = "No_Emergency\n"  # Clear emergency
+        else:
+            # Default format for other commands
+            command = f"{action}\n"
+        
+        # Log command if in debug mode
+        if self.debug_mode:
+            self.logger.debug(f"ARM SEND: {command.strip()}")
+            
         self.arm_uart.write(command.encode())
         
         # Wait for response
@@ -528,9 +581,14 @@ class RobotMasterController:
         while time.time() - start_time < timeout:
             try:
                 response = self.arm_response_queue.get(timeout=0.1)
+                if self.debug_mode:
+                    self.logger.debug(f"ARM RESPONSE: {response}")
                 return response
             except queue.Empty:
                 continue
+        
+        if self.debug_mode:
+            self.logger.warning(f"ARM TIMEOUT: No response received for {command.strip()}")
         return "TIMEOUT"
     
     def scan_qr_codes(self):
@@ -1216,26 +1274,48 @@ class RobotMasterController:
                 self.send_nav_command("MOVE", "FORWARD", "50")
             elif direction == 'backward':
                 self.send_nav_command("MOVE", "BACKWARD", "50")
+            elif direction == 'stop':
+                self.send_nav_command("STOP")
         
         elif cmd == "turn":
             direction = params.get('direction', 'left')
             if direction == 'left':
-                self.send_nav_command("TURN", "LEFT", "45")
+                # For the new ESP32 NAV, we need to implement turning differently
+                # First stop, then turn left motors forward and right motors backward
+                self.send_nav_command("TURN_LEFT")
             elif direction == 'right':
-                self.send_nav_command("TURN", "RIGHT", "45")
+                # First stop, then turn right motors forward and left motors backward
+                self.send_nav_command("TURN_RIGHT")
         
         elif cmd == "stop":
             self.send_nav_command("STOP")
             self.send_arm_command("STOP")
         
-        elif cmd == "home":
-            # Navigate to home position
-            home_pos = self.shelf_positions.get('HOME')
-            if home_pos:
-                self.navigate_to_position(home_pos)
+        elif cmd == "grab":
+            # Use the new grab command for the arm
+            self.send_arm_command("GRIP")
+            
+        elif cmd == "release":
+            # Use the new release command for the arm
+            self.send_arm_command("GRIP", "OPEN")
+        
+        elif cmd == "check_sensors":
+            # Get ultrasonic data
+            ultrasonic = self.get_ultrasonic_data()
+            # Get line tracker data
+            line_trackers = self.check_line_trackers()
+            
+            # Log the sensor data
+            self.log_event("SENSOR_DATA", 
+                          f"Ultrasonic: F={ultrasonic['front']}cm, L={ultrasonic['left']}cm, R={ultrasonic['right']}cm | " +
+                          f"Line trackers: {line_trackers['raw']}")
         
         elif cmd == "emergency_stop":
-            self.emergency_stop()
+            self.send_nav_command("STOP")
+            self.send_arm_command("EMERGENCY")
+            
+        elif cmd == "clear_emergency":
+            self.send_arm_command("CLEAR_EMERGENCY")
             
         # Send result back to web server
         try:
@@ -1324,6 +1404,141 @@ class RobotMasterController:
         # No path found
         return []
 
+    def get_ultrasonic_data(self):
+        """Get ultrasonic sensor data from the navigation ESP32"""
+        if self.simulation_mode:
+            # Simulate ultrasonic sensor readings
+            front = random.randint(30, 200)
+            left = random.randint(30, 200)
+            right = random.randint(30, 200)
+            
+            # Occasionally simulate an obstacle
+            if random.random() < 0.1:  # 10% chance
+                front = random.randint(5, 20)
+                
+            return {
+                "front": front,
+                "left": left,
+                "right": right
+            }
+        
+        elif not self.nav_uart:
+            print("Navigation controller not connected!")
+            return {
+                "front": -1,
+                "left": -1,
+                "right": -1
+            }
+            
+        # Send command to get ultrasonic data
+        # The ESP32 NAV automatically reads ultrasonic sensors in its main loop
+        # We just need to request the data
+        self.nav_uart.write("GET_ULTRASONIC\n".encode())
+        
+        # Wait for response
+        start_time = time.time()
+        timeout = 5
+        while time.time() - start_time < timeout:
+            try:
+                response = self.nav_response_queue.get(timeout=0.1)
+                if response and response.startswith("ULTRASONIC:"):
+                    # Parse response format: ULTRASONIC:FRONT:XX,LEFT:XX,RIGHT:XX
+                    parts = response.replace("ULTRASONIC:", "").split(",")
+                    data = {}
+                    for part in parts:
+                        if ":" in part:
+                            sensor, value = part.split(":")
+                            data[sensor.lower()] = int(value)
+                    
+                    # Fill in any missing values
+                    for sensor in ["front", "left", "right"]:
+                        if sensor not in data:
+                            data[sensor] = -1
+                            
+                    return data
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error parsing ultrasonic data: {e}")
+                break
+                
+        # Return default values if no response
+        return {
+            "front": -1,
+            "left": -1,
+            "right": -1
+        }
+
+    def check_line_trackers(self):
+        """Check line tracker sensors on the ARM ESP32"""
+        if self.simulation_mode:
+            # Simulate line tracker readings
+            # Generate 5 random binary values (0 or 1)
+            trackers = [random.randint(0, 1) for _ in range(5)]
+            
+            # Format: [left_outer, left_inner, center, right_inner, right_outer]
+            return {
+                "left_outer": trackers[0],
+                "left_inner": trackers[1],
+                "center": trackers[2],
+                "right_inner": trackers[3],
+                "right_outer": trackers[4],
+                "raw": trackers
+            }
+        
+        elif not self.arm_uart:
+            print("Arm controller not connected!")
+            return {
+                "left_outer": -1,
+                "left_inner": -1,
+                "center": -1,
+                "right_inner": -1,
+                "right_outer": -1,
+                "raw": [-1, -1, -1, -1, -1]
+            }
+            
+        # Send command to check line tracker sensors
+        self.arm_uart.write("CHECK_IR\n".encode())
+        
+        # Wait for response
+        start_time = time.time()
+        timeout = 5
+        while time.time() - start_time < timeout:
+            try:
+                response = self.arm_response_queue.get(timeout=0.1)
+                if response and response.startswith("IR_STATUS:"):
+                    # Parse response format: IR_STATUS:1,0,1,0,1
+                    values_str = response.replace("IR_STATUS:", "")
+                    values = [int(v) for v in values_str.split(",") if v.strip()]
+                    
+                    # Ensure we have 5 values, pad with -1 if missing
+                    while len(values) < 5:
+                        values.append(-1)
+                    
+                    return {
+                        "left_outer": values[0],
+                        "left_inner": values[1],
+                        "center": values[2],
+                        "right_inner": values[3],
+                        "right_outer": values[4],
+                        "raw": values
+                    }
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error parsing line tracker data: {e}")
+                break
+                
+        # Return default values if no response
+        return {
+            "left_outer": -1,
+            "left_inner": -1,
+            "center": -1,
+            "right_inner": -1,
+            "right_outer": -1,
+            "raw": [-1, -1, -1, -1, -1]
+        }
+
 if __name__ == "__main__":
     robot = None
     
@@ -1331,10 +1546,29 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Robot Master Controller')
     parser.add_argument('--simulation', action='store_true', help='Run in simulation mode without hardware')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging for ESP32 communication')
     args = parser.parse_args()
+    
+    # Configure debug logging if enabled
+    if args.debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler("robot_controller_debug.log"),
+                logging.StreamHandler()
+            ]
+        )
+        logger = logging.getLogger("RobotController")
+        logger.info("Debug logging enabled")
     
     try:
         robot = RobotMasterController(simulation_mode=args.simulation)
+        
+        # Set debug mode if enabled
+        if args.debug:
+            robot.debug_mode = True
+            print("Debug mode enabled - verbose ESP32 communication logging")
         
         # Check if essential components are connected
         if not robot.camera and not robot.simulation_mode:

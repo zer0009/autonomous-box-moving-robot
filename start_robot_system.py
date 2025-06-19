@@ -13,11 +13,13 @@ import argparse
 import signal
 import atexit
 
-def start_robot_controller(simulation=True, skip_camera=False):
+def start_robot_controller(simulation=True, skip_camera=False, debug=False):
     """Start the robot master controller in a separate process"""
     cmd = [sys.executable, "robot_master_controller.py"]
     if simulation:
         cmd.append("--simulation")
+    if debug:
+        cmd.append("--debug")
     
     env = os.environ.copy()
     if skip_camera:
@@ -51,10 +53,13 @@ if __name__ == "__main__":
                         help='Run with real hardware (default: simulation mode)')
     parser.add_argument('--skip-camera', action='store_true',
                         help='Skip camera detection (useful for headless operation)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug logging for ESP32 communication')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
     skip_camera = args.skip_camera
+    debug_mode = args.debug
     
     processes = []
     
@@ -63,7 +68,7 @@ if __name__ == "__main__":
         atexit.register(cleanup_processes, processes)
         
         # Start robot controller
-        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera)
+        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera, debug=debug_mode)
         processes.append(controller_process)
         
         # Give the controller a moment to initialize
