@@ -67,7 +67,7 @@ def find_serial_ports():
     
     return available_ports
 
-def connect_to_port(port, baud=115200, timeout=1):
+def connect_to_port(port, baud=9600, timeout=1):
     """Connect to a serial port with enhanced feedback"""
     try:
         # Try higher baud rate first for ESP32
