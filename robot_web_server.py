@@ -197,15 +197,25 @@ def api_send_command():
         command = data['command']
         params = data.get('params', {})
         
+        # Generate a unique command ID
+        command_id = int(time.time() * 1000)
+        
         # Add command to queue
         command_queue.append({
+            "id": command_id,
             "command": command,
             "params": params,
             "timestamp": time.time(),
             "status": "pending"
         })
         
-        return jsonify({"status": "Command added to queue", "queue_position": len(command_queue)})
+        logger.info(f"Command added to queue: {command} (ID: {command_id})")
+        
+        return jsonify({
+            "status": "Command added to queue", 
+            "queue_position": len(command_queue),
+            "command_id": command_id
+        })
     except Exception as e:
         logger.error(f"Error in api_send_command: {e}")
         return jsonify({"error": str(e)}), 500
@@ -314,10 +324,23 @@ def update_robot_status():
         
         # Check for pending commands - return immediately to avoid blocking
         if command_queue:
+            # Only return the first command that hasn't been sent yet
+            for i, cmd in enumerate(command_queue):
+                if cmd.get("status") == "pending":
+                    # Mark as sent
+                    command_queue[i]["status"] = "sent"
+                    command_queue[i]["sent_time"] = time.time()
+                    
+                    return jsonify({
+                        "status": "ok",
+                        "has_commands": True,
+                        "commands": command_queue[i]
+                    })
+            
+            # If all commands have been sent but not acknowledged
             return jsonify({
                 "status": "ok",
-                "has_commands": True,
-                "commands": command_queue[0]  # Send the oldest command
+                "has_commands": False
             })
         else:
             return jsonify({
@@ -339,11 +362,22 @@ def command_result():
         # Log the command result
         command = data.get('command', 'unknown')
         result = data.get('result', 'unknown')
-        logger.info(f"Command result: {command} - {result}")
+        command_id = data.get('command_id', 0)
+        logger.info(f"Command result: {command} (ID: {command_id}) - {result}")
             
         # Remove the command from queue if it exists
-        if command_queue:
-            command_queue.pop(0)
+        for i, cmd in enumerate(command_queue):
+            if cmd.get("id") == command_id or (i == 0 and command_id == 0):
+                command_queue.pop(i)
+                break
+                
+        # Clean up old commands that were sent but never acknowledged
+        current_time = time.time()
+        for i in range(len(command_queue) - 1, -1, -1):
+            if command_queue[i].get("status") == "sent" and \
+               command_queue[i].get("sent_time", 0) < current_time - 30:  # 30 seconds timeout
+                logger.warning(f"Command timed out and removed: {command_queue[i].get('command')} (ID: {command_queue[i].get('id')})")
+                command_queue.pop(i)
             
         return jsonify({"status": "ok"})
     except Exception as e:

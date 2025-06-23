@@ -23,6 +23,7 @@ import glob
 import signal
 import sys
 import requests
+import functools
 
 class RobotMasterController:
     def __init__(self, simulation_mode=False):
@@ -158,7 +159,7 @@ class RobotMasterController:
         ]
         
         # Filter available ports to only include TTY devices
-        available_tty_ports = [p for p in available_ports if 'tty' in p]
+        available_tty_ports = [p for p in available_ports if 'tty' in p or 'COM' in p]
         
         # Log available ports
         if self.debug_mode:
@@ -171,17 +172,31 @@ class RobotMasterController:
             try:
                 print(f"Connecting to navigation controller on {nav_port_env} (from environment)...")
                 self.nav_uart = serial.Serial(nav_port_env, 9600, timeout=1)
-                print(f"Connected to navigation controller on {nav_port_env}")
+                # Test if port is actually usable
+                if self.test_port_connection(self.nav_uart, "NAV"):
+                    print(f"Connected to navigation controller on {nav_port_env}")
+                else:
+                    print(f"Port {nav_port_env} is not responding as navigation controller")
+                    self.nav_uart.close()
+                    self.nav_uart = None
             except Exception as e:
                 print(f"Failed to connect to {nav_port_env}: {e}")
+                self.nav_uart = None
         
         if arm_port_env and not self.nav_only_mode:
             try:
                 print(f"Connecting to arm controller on {arm_port_env} (from environment)...")
                 self.arm_uart = serial.Serial(arm_port_env, 9600, timeout=1)
-                print(f"Connected to arm controller on {arm_port_env}")
+                # Test if port is actually usable
+                if self.test_port_connection(self.arm_uart, "ARM"):
+                    print(f"Connected to arm controller on {arm_port_env}")
+                else:
+                    print(f"Port {arm_port_env} is not responding as arm controller")
+                    self.arm_uart.close()
+                    self.arm_uart = None
             except Exception as e:
                 print(f"Failed to connect to {arm_port_env}: {e}")
+                self.arm_uart = None
         
         # If we still need to detect devices, proceed with auto-detection
         if (not self.nav_uart and not self.arm_only_mode) or (not self.arm_uart and not self.nav_only_mode):
@@ -219,9 +234,13 @@ class RobotMasterController:
                         if port in available_tty_ports:  # Only try ports that actually exist
                             try:
                                 print(f"Trying navigation controller on {port}...")
-                                self.nav_uart = serial.Serial(port, 9600, timeout=1)
-                                print(f"Connected to navigation controller on {port}")
-                                break
+                                test_uart = serial.Serial(port, 9600, timeout=1)
+                                if self.test_port_connection(test_uart, "NAV"):
+                                    self.nav_uart = test_uart
+                                    print(f"Connected to navigation controller on {port}")
+                                    break
+                                else:
+                                    test_uart.close()
                             except Exception as e:
                                 print(f"Failed to connect to {port}: {e}")
                 
@@ -232,9 +251,13 @@ class RobotMasterController:
                         if port in available_tty_ports:  # Only try ports that actually exist
                             try:
                                 print(f"Trying arm controller on {port}...")
-                                self.arm_uart = serial.Serial(port, 9600, timeout=1)
-                                print(f"Connected to arm controller on {port}")
-                                break
+                                test_uart = serial.Serial(port, 9600, timeout=1)
+                                if self.test_port_connection(test_uart, "ARM"):
+                                    self.arm_uart = test_uart
+                                    print(f"Connected to arm controller on {port}")
+                                    break
+                                else:
+                                    test_uart.close()
                             except Exception as e:
                                 print(f"Failed to connect to {port}: {e}")
         
@@ -243,6 +266,59 @@ class RobotMasterController:
             print("WARNING: Navigation controller not connected!")
         if not self.arm_uart and not self.nav_only_mode:
             print("WARNING: Arm controller not connected!")
+    
+    def test_port_connection(self, uart, controller_type):
+        """Test if a port is actually connected to the expected controller"""
+        if not uart:
+            return False
+            
+        try:
+            # Clear any pending data
+            uart.reset_input_buffer()
+            
+            # Send test command based on controller type
+            if controller_type == "NAV":
+                test_cmd = "IDENTIFY\n"
+                uart.write(test_cmd.encode())
+                time.sleep(0.5)
+                
+                # Try a few times to get a response
+                for _ in range(3):
+                    if uart.in_waiting:
+                        response = uart.readline().decode().strip()
+                        if "NAV" in response or "NAVIGATION" in response:
+                            return True
+                        # Try another common command
+                        uart.write("IR:OFF\n".encode())
+                        time.sleep(0.5)
+                        if uart.in_waiting:
+                            return True
+                    time.sleep(0.2)
+                
+            elif controller_type == "ARM":
+                test_cmd = "IDENTIFY\n"
+                uart.write(test_cmd.encode())
+                time.sleep(0.5)
+                
+                # Try a few times to get a response
+                for _ in range(3):
+                    if uart.in_waiting:
+                        response = uart.readline().decode().strip()
+                        if "ARM" in response or "GRIPPER" in response:
+                            return True
+                        # Try another common command
+                        uart.write("No_Emergency\n".encode())
+                        time.sleep(0.5)
+                        if uart.in_waiting:
+                            return True
+                    time.sleep(0.2)
+            
+            # If we got here, no valid response was received
+            return False
+            
+        except Exception as e:
+            print(f"Error testing port connection: {e}")
+            return False
     
     def setup_camera(self):
         """Setup camera with fallback options for USB cameras"""
@@ -1409,41 +1485,64 @@ class RobotMasterController:
     
     def status_update_thread(self):
         """Thread to periodically update web server status"""
+        # Use a session for connection pooling and better performance
+        session = requests.Session()
+        
+        # Set default timeout for all requests in this session
+        session.request = functools.partial(session.request, timeout=0.5)
+        
+        # Track consecutive failures to avoid flooding logs
+        consecutive_failures = 0
+        max_consecutive_failures = 10
+        
         while True:
             try:
                 # Get current status
                 status = self.get_status_report()
                 
-                # Send to web server API with shorter timeout
-                try:
-                    # Use a shorter timeout to avoid blocking
-                    response = requests.post(
-                        'http://localhost:5000/api/update_robot_status',
-                        json=status,
-                        timeout=0.5  # Shorter timeout to prevent blocking
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        # Check for commands
-                        if data.get('has_commands', False):
-                            cmd = data.get('commands', {})
-                            # Execute command in a separate thread to avoid blocking
-                            command_thread = threading.Thread(
-                                target=self.execute_web_command,
-                                args=(cmd,),
-                                daemon=True
-                            )
-                            command_thread.start()
-                except requests.exceptions.Timeout:
-                    # Timeout is expected sometimes, just continue
-                    pass
-                except requests.exceptions.ConnectionError:
-                    # Web server might not be running yet
-                    pass
-                except Exception as e:
-                    if self.debug_mode:
-                        print(f"Web server communication error: {e}")
+                # Use a separate thread for the actual request to avoid blocking
+                def send_status_update():
+                    nonlocal consecutive_failures
+                    try:
+                        response = session.post(
+                            'http://localhost:5000/api/update_robot_status',
+                            json=status,
+                            timeout=0.5
+                        )
+                        
+                        if response.status_code == 200:
+                            consecutive_failures = 0  # Reset failure counter on success
+                            data = response.json()
+                            # Check for commands
+                            if data.get('has_commands', False):
+                                cmd = data.get('commands', {})
+                                # Execute command in a separate thread to avoid blocking
+                                command_thread = threading.Thread(
+                                    target=self.execute_web_command,
+                                    args=(cmd,),
+                                    daemon=True
+                                )
+                                command_thread.start()
+                    except requests.exceptions.Timeout:
+                        # Timeout is expected sometimes, just continue
+                        pass
+                    except requests.exceptions.ConnectionError:
+                        # Web server might not be running yet
+                        consecutive_failures += 1
+                        if consecutive_failures <= max_consecutive_failures:
+                            if self.debug_mode or consecutive_failures == 1:
+                                print(f"Web server connection error (attempt {consecutive_failures})")
+                    except Exception as e:
+                        consecutive_failures += 1
+                        if consecutive_failures <= max_consecutive_failures:
+                            if self.debug_mode or consecutive_failures == 1:
+                                print(f"Web server communication error: {e}")
+                
+                # Run the request in a separate thread with a timeout
+                update_thread = threading.Thread(target=send_status_update, daemon=True)
+                update_thread.start()
+                update_thread.join(timeout=1.0)  # Wait max 1 second for thread to complete
+                
             except Exception as e:
                 if self.debug_mode:
                     print(f"Status update error: {e}")
@@ -1458,11 +1557,13 @@ class RobotMasterController:
             
         cmd = command_data['command']
         params = command_data.get('params', {})
+        command_id = command_data.get('id', 0)
         
         self.log_event("WEB_COMMAND", f"Received web command: {cmd}")
         
         # Track if command was executed
         command_executed = False
+        command_result = "failed"
         
         # Navigation commands
         if cmd == "move":
@@ -1471,13 +1572,16 @@ class RobotMasterController:
                 # Forward movement - w
                 response = self.send_nav_command("MOVE", "FORWARD")
                 command_executed = True
+                command_result = response if response else "executed"
             elif direction == 'backward':
                 # Backward movement - s
                 response = self.send_nav_command("MOVE", "BACKWARD")
                 command_executed = True
+                command_result = response if response else "executed"
             elif direction == 'stop':
                 response = self.send_nav_command("STOP")
                 command_executed = True
+                command_result = response if response else "executed"
         
         elif cmd == "turn":
             direction = params.get('direction', 'left')
@@ -1485,10 +1589,12 @@ class RobotMasterController:
                 # Turn left - a
                 response = self.send_nav_command("TURN_LEFT")
                 command_executed = True
+                command_result = response if response else "executed"
             elif direction == 'right':
                 # Turn right - d
                 response = self.send_nav_command("TURN_RIGHT")
                 command_executed = True
+                command_result = response if response else "executed"
         
         elif cmd == "stop":
             # Try to stop both controllers, but don't require both to be connected
@@ -1499,17 +1605,21 @@ class RobotMasterController:
             if self.arm_uart or self.simulation_mode:
                 self.send_arm_command("STOP")
                 command_executed = True
+                
+            command_result = "executed"
         
         # Basic arm commands
         elif cmd == "grab":
             # Use the grab command for the arm
             response = self.send_arm_command("GRIP")
             command_executed = True
+            command_result = response if response else "executed"
             
         elif cmd == "release":
             # Use the release command for the arm
             response = self.send_arm_command("GRIP", "OPEN")
             command_executed = True
+            command_result = response if response else "executed"
             
         # New detailed arm commands
         elif cmd == "arm_move":
@@ -1519,44 +1629,55 @@ class RobotMasterController:
             if arm_cmd == 'f':  # Move Forward
                 response = self.send_arm_command("MOVE_FORWARD")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'b':  # Move Backward
                 response = self.send_arm_command("MOVE_BACKWARD")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'l':  # Strafe Left
                 response = self.send_arm_command("STRAFE_LEFT")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'r':  # Strafe Right
                 response = self.send_arm_command("STRAFE_RIGHT")
                 command_executed = True
+                command_result = response if response else "executed"
             
             # Base rotation
             elif arm_cmd == 'q':  # Base Rotate Left
                 response = self.send_arm_command("MOVE_MOTOR", "5", "BACK")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'e':  # Base Rotate Right
                 response = self.send_arm_command("MOVE_MOTOR", "5", "FWD")
                 command_executed = True
+                command_result = response if response else "executed"
             
             # Shoulder movement
             elif arm_cmd == 'z':  # Shoulder Down
                 response = self.send_arm_command("MOVE_MOTOR", "6", "BACK")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'x':  # Shoulder Up
                 response = self.send_arm_command("MOVE_MOTOR", "6", "FWD")
                 command_executed = True
+                command_result = response if response else "executed"
             
             # Elbow movement
             elif arm_cmd == 'c':  # Elbow Down
                 response = self.send_arm_command("MOVE_MOTOR", "7", "BACK")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'v':  # Elbow Up
                 response = self.send_arm_command("MOVE_MOTOR", "7", "FWD")
                 command_executed = True
+                command_result = response if response else "executed"
             
             # Gripper control
             elif arm_cmd == 'o':  # Gripper Open
                 response = self.send_arm_command("GRIP", "OPEN")
                 command_executed = True
+                command_result = response if response else "executed"
             elif arm_cmd == 'p':  # Gripper Close
                 response = self.send_arm_command("GRIP")
                 command_executed = True
@@ -1578,6 +1699,7 @@ class RobotMasterController:
             self.log_event("SENSOR_DATA", 
                           f"Ultrasonic: F={ultrasonic['front']}cm, L={ultrasonic['left']}cm, R={ultrasonic['right']}cm | " +
                           f"Line trackers: {line_trackers['raw']}")
+            command_result = "executed"
         
         elif cmd == "emergency_stop":
             if self.nav_uart or self.simulation_mode:
@@ -1588,25 +1710,44 @@ class RobotMasterController:
                 self.send_arm_command("EMERGENCY")
                 command_executed = True
             
+            command_result = "executed"
+            
         elif cmd == "clear_emergency":
             if self.arm_uart or self.simulation_mode:
                 self.send_arm_command("CLEAR_EMERGENCY")
                 command_executed = True
+                
+            command_result = "executed"
         
         # Send result back to web server
+        self.report_command_result(command_id, cmd, command_executed, command_result)
+    
+    def report_command_result(self, command_id, command, executed, result):
+        """Report command execution result back to web server"""
         try:
-            import requests
-            requests.post(
-                'http://localhost:5000/api/command_result',
-                json={
-                    'command_id': command_data.get('id', 0),
-                    'result': 'executed' if command_executed else 'failed',
-                    'command': cmd
-                },
-                timeout=1
-            )
+            # Use a separate thread to avoid blocking
+            def send_result():
+                try:
+                    import requests
+                    requests.post(
+                        'http://localhost:5000/api/command_result',
+                        json={
+                            'command_id': command_id,
+                            'command': command,
+                            'result': result if executed else 'failed'
+                        },
+                        timeout=1
+                    )
+                except Exception as e:
+                    if self.debug_mode:
+                        print(f"Error reporting command result: {e}")
+            
+            # Run in a separate thread to avoid blocking
+            result_thread = threading.Thread(target=send_result, daemon=True)
+            result_thread.start()
         except Exception as e:
-            print(f"Error reporting command result: {e}")
+            if self.debug_mode:
+                print(f"Error creating result reporting thread: {e}")
 
     def a_star_pathfinding(self, start, goal):
         """A* pathfinding algorithm to navigate the grid"""
