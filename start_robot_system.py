@@ -75,6 +75,12 @@ if __name__ == "__main__":
                         help='ARM controller communicates via ESP-NOW through NAV controller')
     parser.add_argument('--alt-commands', action='store_true',
                         help='Try alternative motor control commands')
+    parser.add_argument('--nav-only', action='store_true',
+                        help='Run with only navigation controller (no arm controller needed)')
+    parser.add_argument('--arm-only', action='store_true',
+                        help='Run with only arm controller (no navigation controller needed)')
+    parser.add_argument('--web-only', action='store_true',
+                        help='Run only the web server without the robot controller')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
@@ -87,6 +93,9 @@ if __name__ == "__main__":
     test_arm = args.test_arm
     esp_now = args.esp_now
     alt_commands = args.alt_commands
+    nav_only = args.nav_only
+    arm_only = args.arm_only
+    web_only = args.web_only
     
     # Set environment variables for ports if specified
     env_vars = {}
@@ -94,6 +103,12 @@ if __name__ == "__main__":
         env_vars["NAV_PORT"] = nav_port
     if arm_port:
         env_vars["ARM_PORT"] = arm_port
+    
+    # Set controller mode flags
+    if nav_only:
+        env_vars["NAV_ONLY"] = "1"
+    if arm_only:
+        env_vars["ARM_ONLY"] = "1"
     
     # If testing motors directly, run a different script
     if test_motors or test_nav or test_arm:
@@ -128,18 +143,30 @@ if __name__ == "__main__":
         # Register cleanup function
         atexit.register(cleanup_processes, processes)
         
-        # Start robot controller
-        controller_process = start_robot_controller(simulation=simulation_mode, skip_camera=skip_camera, debug=debug_mode, env_vars=env_vars)
-        processes.append(controller_process)
-        
-        # Give the controller a moment to initialize
-        time.sleep(2)
+        # Start robot controller if not web-only mode
+        if not web_only:
+            controller_process = start_robot_controller(
+                simulation=simulation_mode, 
+                skip_camera=skip_camera, 
+                debug=debug_mode, 
+                env_vars=env_vars
+            )
+            processes.append(controller_process)
+            
+            # Give the controller a moment to initialize
+            time.sleep(2)
         
         # Start web server
         web_process = start_web_server()
         processes.append(web_process)
         
         print("Robot system started successfully!")
+        if web_only:
+            print("Running in web server only mode")
+        elif nav_only:
+            print("Running with navigation controller only")
+        elif arm_only:
+            print("Running with arm controller only")
         print("Press Ctrl+C to stop all components")
         
         # Wait for processes to complete (which they won't unless there's an error)

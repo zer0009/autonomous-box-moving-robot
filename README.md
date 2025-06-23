@@ -148,6 +148,23 @@ Connect the ESP32 controllers and camera, then:
 python3 start_robot_system.py --no-simulation
 ```
 
+### Running with Limited Hardware
+
+The system can operate with only one of the controllers connected:
+
+```bash
+# Run with only navigation controller (no arm controller needed)
+python3 start_robot_system.py --no-simulation --nav-only
+
+# Run with only arm controller (no navigation controller needed)
+python3 start_robot_system.py --no-simulation --arm-only
+
+# Run only the web interface without any controllers
+python3 start_robot_system.py --web-only
+```
+
+The web interface will clearly indicate which controllers are connected or required.
+
 ### Autostart on Boot (optional)
 
 To start the robot system automatically when the Raspberry Pi boots:
@@ -282,101 +299,3 @@ The system can run in simulation mode without hardware:
 2. **Camera Detection**
    - The system tries multiple camera indices (0, 1, 2)
    - Check camera connections with `ls -l /dev/video*`
-
-3. **Database Issues**
-   - The database (`robot_tasks.db`) is created automatically
-   - Use a SQLite browser to inspect or fix data
-
-4. **ESP32 Communication**
-   - Monitor communications with `minicom -D /dev/ttyUSB0 -b 115200`
-   - Check if ESP32 is responding with "NAV:READY" or "ARM:READY"
-
-# Box-Moving Robot System Upgrade
-
-This upgrade adds support for:
-1. **Shelves with multiple sections** - Each shelf (A, B, C) now has sections (A1, A2, A3, etc.)
-2. **Improved destination tracking** - Boxes can be directed to specific shelf sections
-3. **Multiple box handling** - The robot can now detect and carry multiple boxes simultaneously
-
-## Files Modified
-- `robot_master_controller.py` - Updated to support multi-box handling and shelf sections
-- `esp32_arm_controller.ino` - Enhanced to support stacking boxes and section-specific placement
-- `qr_code_generator.py` - Updated to generate section-specific QR codes
-- `robot_web_server.py` - Added shelf section visualization and section-specific box tracking
-- New file: `upgrade_system.py` - Tool to update database schema and existing QR codes
-
-## Quick Upgrade Steps
-
-1. **Back up your data**
-   ```
-   cp robot_tasks.db robot_tasks_backup.db
-   ```
-
-2. **Update source files**
-   - Replace all modified files with the new versions
-
-3. **Run the upgrade script**
-   ```
-   python upgrade_system.py
-   ```
-   This will:
-   - Back up your database
-   - Update the database schema to support new features
-   - Convert existing QR codes to the new format
-   - Generate sample section-specific QR codes
-
-4. **Upload updated firmware**
-   - Flash the updated `esp32_arm_controller.ino` to your arm controller ESP32
-
-5. **Restart the system**
-   ```
-   python robot_master_controller.py
-   python robot_web_server.py
-   ```
-
-## New Features
-
-### Multi-box Handling
-The robot can now detect and pick up multiple boxes (default: 2 maximum) before delivering them, optimizing movement.
-
-### Shelf Sections
-Each shelf now has multiple sections (e.g., A1, A2, A3) with their own:
-- Capacity tracking
-- Occupancy monitoring
-- Specific placement coordinates
-
-### QR Code Enhancements
-New QR code format:
-```
-BOX_ID123_SHELF_A_SECTION_A2_WEIGHT_2.5
-```
-
-Generate section-specific QR codes:
-```
-python qr_code_generator.py --type section --shelf A --section A1
-```
-
-Generate multiple box QR codes for same destination:
-```
-python qr_code_generator.py --type multi --shelf A --multi-count 3
-```
-
-### Web Interface Improvements
-
-A new shelf management page shows:
-- Section capacity and utilization
-- Box assignments by section
-- Current occupancy status
-
-Available at: http://[robot-ip]:5000/shelves
-
-## Technical Details
-
-### Database Changes
-- Added `destination_section` column to `boxes` table
-- Added `stack_position` column to `boxes` table
-- Added new `shelf_sections` table for tracking section capacities
-
-### New QR Code Types
-- `section`: Shelf section identifiers (e.g., A1, B2, etc.)
-- `multi`: Generate multiple box QR codes for a single destination 

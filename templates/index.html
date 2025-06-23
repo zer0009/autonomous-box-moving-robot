@@ -75,6 +75,36 @@
                         {% endif %}
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <h5>Controller Status</h5>
+                            <div class="d-flex flex-wrap">
+                                <div class="me-4">
+                                    <p>
+                                        <strong>Navigation:</strong> 
+                                        {% if robot_status.nav_controller_connected %}
+                                            <span class="badge bg-success">Connected</span>
+                                        {% elif robot_status.arm_only_mode %}
+                                            <span class="badge bg-secondary">Not Required</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Disconnected</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p>
+                                        <strong>Arm:</strong> 
+                                        {% if robot_status.arm_controller_connected %}
+                                            <span class="badge bg-success">Connected</span>
+                                        {% elif robot_status.nav_only_mode %}
+                                            <span class="badge bg-secondary">Not Required</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Disconnected</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <p><strong>Position:</strong> {{ robot_status.position }}</p>
                         <p><strong>Orientation:</strong> {{ robot_status.orientation }}°</p>
                         <p><strong>Status:</strong> {{ "Busy" if robot_status.robot_busy else "Idle" }}</p>

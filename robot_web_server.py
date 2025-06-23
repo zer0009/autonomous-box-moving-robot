@@ -174,7 +174,11 @@ def api_status():
             "orientation": robot_status["orientation"],
             "robot_busy": robot_status["robot_busy"],
             "pending_tasks": pending,
-            "completed_tasks": completed
+            "completed_tasks": completed,
+            "nav_controller_connected": robot_status.get("nav_controller_connected", False),
+            "arm_controller_connected": robot_status.get("arm_controller_connected", False),
+            "nav_only_mode": robot_status.get("nav_only_mode", False),
+            "arm_only_mode": robot_status.get("arm_only_mode", False)
         }
         
         return jsonify(status)
@@ -302,7 +306,13 @@ def update_robot_status():
         robot_status["pending_tasks"] = data.get("pending_tasks", robot_status["pending_tasks"])
         robot_status["completed_tasks"] = data.get("completed_tasks", robot_status["completed_tasks"])
         
-        # Check for pending commands
+        # Update controller status
+        robot_status["nav_controller_connected"] = data.get("nav_controller_connected", False)
+        robot_status["arm_controller_connected"] = data.get("arm_controller_connected", False)
+        robot_status["nav_only_mode"] = data.get("nav_only_mode", False)
+        robot_status["arm_only_mode"] = data.get("arm_only_mode", False)
+        
+        # Check for pending commands - return immediately to avoid blocking
         if command_queue:
             return jsonify({
                 "status": "ok",
@@ -323,10 +333,15 @@ def command_result():
     """API endpoint for robot to report command execution result"""
     try:
         data = request.get_json()
-        if not data or 'command_id' not in data:
+        if not data:
             return jsonify({"error": "Invalid result format"}), 400
+        
+        # Log the command result
+        command = data.get('command', 'unknown')
+        result = data.get('result', 'unknown')
+        logger.info(f"Command result: {command} - {result}")
             
-        # Remove the command from queue
+        # Remove the command from queue if it exists
         if command_queue:
             command_queue.pop(0)
             
@@ -561,6 +576,36 @@ def create_templates():
                         {% endif %}
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <h5>Controller Status</h5>
+                            <div class="d-flex flex-wrap">
+                                <div class="me-4">
+                                    <p>
+                                        <strong>Navigation:</strong> 
+                                        {% if robot_status.nav_controller_connected %}
+                                            <span class="badge bg-success">Connected</span>
+                                        {% elif robot_status.arm_only_mode %}
+                                            <span class="badge bg-secondary">Not Required</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Disconnected</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p>
+                                        <strong>Arm:</strong> 
+                                        {% if robot_status.arm_controller_connected %}
+                                            <span class="badge bg-success">Connected</span>
+                                        {% elif robot_status.nav_only_mode %}
+                                            <span class="badge bg-secondary">Not Required</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Disconnected</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <p><strong>Position:</strong> {{ robot_status.position }}</p>
                         <p><strong>Orientation:</strong> {{ robot_status.orientation }}°</p>
                         <p><strong>Status:</strong> {{ "Busy" if robot_status.robot_busy else "Idle" }}</p>
@@ -700,6 +745,12 @@ def create_templates():
             margin: 5px;
             font-size: 24px;
         }
+        .arm-btn {
+            width: 60px;
+            height: 60px;
+            margin: 3px;
+            font-size: 18px;
+        }
         #robotCanvas {
             border: 1px solid #ccc;
             background-color: #f8f9fa;
@@ -709,6 +760,23 @@ def create_templates():
             color: #666;
             display: block;
             margin-top: 5px;
+        }
+        .controller-status {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .controller-connected {
+            background-color: rgba(40, 167, 69, 0.1);
+            border: 1px solid #28a745;
+        }
+        .controller-disconnected {
+            background-color: rgba(220, 53, 69, 0.1);
+            border: 1px solid #dc3545;
+        }
+        .controller-not-required {
+            background-color: rgba(108, 117, 125, 0.1);
+            border: 1px solid #6c757d;
         }
     </style>
 </head>
@@ -739,38 +807,107 @@ def create_templates():
         <div class="row">
             <div class="col-md-6">
                 <div class="card mb-4">
-                    <div class="card-header">Robot Control (WASD+X)</div>
+                    <div class="card-header">Navigation Control (WASD+X)</div>
                     <div class="card-body">
+                        <div id="nav-status" class="controller-status">
+                            <strong>Navigation Controller:</strong> <span id="nav-status-text">Checking...</span>
+                        </div>
+                        
                         <div class="text-center mb-4">
                             <div>
-                                <button class="btn btn-primary control-btn" onclick="sendCommand('move', {direction: 'forward'})">W
+                                <button id="btn-forward" class="btn btn-primary control-btn" onclick="sendCommand('move', {direction: 'forward'})">W
                                     <span class="key-hint">Forward</span>
                                 </button>
                             </div>
                             <div>
-                                <button class="btn btn-primary control-btn" onclick="sendCommand('turn', {direction: 'left'})">A
+                                <button id="btn-left" class="btn btn-primary control-btn" onclick="sendCommand('turn', {direction: 'left'})">A
                                     <span class="key-hint">Turn Left</span>
                                 </button>
-                                <button class="btn btn-danger control-btn" onclick="sendCommand('stop')">X
+                                <button id="btn-stop" class="btn btn-danger control-btn" onclick="sendCommand('stop')">X
                                     <span class="key-hint">Stop</span>
                                 </button>
-                                <button class="btn btn-primary control-btn" onclick="sendCommand('turn', {direction: 'right'})">D
+                                <button id="btn-right" class="btn btn-primary control-btn" onclick="sendCommand('turn', {direction: 'right'})">D
                                     <span class="key-hint">Turn Right</span>
                                 </button>
                             </div>
                             <div>
-                                <button class="btn btn-primary control-btn" onclick="sendCommand('move', {direction: 'backward'})">S
+                                <button id="btn-backward" class="btn btn-primary control-btn" onclick="sendCommand('move', {direction: 'backward'})">S
                                     <span class="key-hint">Backward</span>
                                 </button>
                             </div>
                         </div>
                         
                         <div class="d-grid gap-2 mb-4">
-                            <button class="btn btn-success" onclick="sendCommand('home')">Return to Home</button>
-                            <button class="btn btn-warning" onclick="sendCommand('emergency_stop')">EMERGENCY STOP</button>
+                            <button id="btn-home" class="btn btn-success" onclick="sendCommand('home')">Return to Home</button>
+                            <button id="btn-emergency" class="btn btn-warning" onclick="sendCommand('emergency_stop')">EMERGENCY STOP</button>
+                            <button id="btn-clear-emergency" class="btn btn-info" onclick="sendCommand('clear_emergency')">Clear Emergency</button>
                         </div>
                     </div>
                 </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">Arm Control</div>
+                    <div class="card-body">
+                        <div id="arm-status" class="controller-status">
+                            <strong>Arm Controller:</strong> <span id="arm-status-text">Checking...</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h5>Base & Movement</h5>
+                            <div class="d-flex justify-content-center flex-wrap">
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('f')">F
+                                    <span class="key-hint">Forward</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('b')">B
+                                    <span class="key-hint">Back</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('l')">L
+                                    <span class="key-hint">Left</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('r')">R
+                                    <span class="key-hint">Right</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('q')">Q
+                                    <span class="key-hint">Rotate L</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('e')">E
+                                    <span class="key-hint">Rotate R</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h5>Arm Joints</h5>
+                            <div class="d-flex justify-content-center flex-wrap">
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('z')">Z
+                                    <span class="key-hint">Shoulder ↓</span>
+                                </button>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('x')">X
+                                    <span class="key-hint">Shoulder ↑</span>
+                                </button>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('c')">C
+                                    <span class="key-hint">Elbow ↓</span>
+                                </button>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('v')">V
+                                    <span class="key-hint">Elbow ↑</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h5>Gripper</h5>
+                            <div class="d-flex justify-content-center">
+                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('o')">O
+                                    <span class="key-hint">Open</span>
+                                </button>
+                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('p')">P
+                                    <span class="key-hint">Close</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="card mb-4">
                     <div class="card-header">Command Response</div>
                     <div class="card-body">
@@ -800,14 +937,28 @@ def create_templates():
                 <div class="card mb-4">
                     <div class="card-header">Keyboard Controls</div>
                     <div class="card-body">
-                        <p>You can also use your keyboard to control the robot:</p>
-                        <ul>
-                            <li><strong>W</strong> - Move forward</li>
-                            <li><strong>A</strong> - Turn left</li>
-                            <li><strong>S</strong> - Move backward</li>
-                            <li><strong>D</strong> - Turn right</li>
-                            <li><strong>X</strong> - Stop</li>
-                        </ul>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Navigation Controls</h5>
+                                <ul>
+                                    <li><strong>W</strong> - Move forward</li>
+                                    <li><strong>A</strong> - Turn left</li>
+                                    <li><strong>S</strong> - Move backward</li>
+                                    <li><strong>D</strong> - Turn right</li>
+                                    <li><strong>X</strong> - Stop</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Arm Controls</h5>
+                                <ul>
+                                    <li><strong>F, B, L, R</strong> - Move arm (Forward, Back, Left, Right)</li>
+                                    <li><strong>Q, E</strong> - Rotate base (Left, Right)</li>
+                                    <li><strong>Z, X</strong> - Shoulder (Down, Up)</li>
+                                    <li><strong>C, V</strong> - Elbow (Down, Up)</li>
+                                    <li><strong>O, P</strong> - Gripper (Open, Close)</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -837,6 +988,11 @@ def create_templates():
             });
         }
         
+        // Function to send arm commands
+        function sendArmCommand(arm_cmd) {
+            sendCommand('arm_move', {arm_cmd: arm_cmd});
+        }
+        
         // Function to update robot status
         function updateRobotStatus() {
             fetch('/api/status')
@@ -846,10 +1002,68 @@ def create_templates():
                 document.getElementById('orientationText').textContent = data.orientation + '°';
                 document.getElementById('statusText').textContent = data.robot_busy ? 'Busy' : 'Idle';
                 
+                // Update controller status
+                updateNavControllerStatus(data);
+                updateArmControllerStatus(data);
+                
                 // Draw robot on canvas
                 drawRobot(data.position, data.orientation);
             })
             .catch(error => console.error('Error fetching status:', error));
+        }
+        
+        // Update navigation controller status
+        function updateNavControllerStatus(data) {
+            const navStatus = document.getElementById('nav-status');
+            const navStatusText = document.getElementById('nav-status-text');
+            const navButtons = document.querySelectorAll('#btn-forward, #btn-backward, #btn-left, #btn-right, #btn-stop, #btn-home');
+            
+            if (data.nav_controller_connected) {
+                navStatus.className = 'controller-status controller-connected';
+                navStatusText.textContent = 'Connected';
+                navButtons.forEach(btn => {
+                    btn.disabled = false;
+                });
+            } else if (data.arm_only_mode) {
+                navStatus.className = 'controller-status controller-not-required';
+                navStatusText.textContent = 'Not Required (Arm-Only Mode)';
+                navButtons.forEach(btn => {
+                    btn.disabled = true;
+                });
+            } else {
+                navStatus.className = 'controller-status controller-disconnected';
+                navStatusText.textContent = 'Disconnected';
+                navButtons.forEach(btn => {
+                    btn.disabled = true;
+                });
+            }
+        }
+        
+        // Update arm controller status
+        function updateArmControllerStatus(data) {
+            const armStatus = document.getElementById('arm-status');
+            const armStatusText = document.getElementById('arm-status-text');
+            const armButtons = document.querySelectorAll('.arm-control-btn');
+            
+            if (data.arm_controller_connected) {
+                armStatus.className = 'controller-status controller-connected';
+                armStatusText.textContent = 'Connected';
+                armButtons.forEach(btn => {
+                    btn.disabled = false;
+                });
+            } else if (data.nav_only_mode) {
+                armStatus.className = 'controller-status controller-not-required';
+                armStatusText.textContent = 'Not Required (Nav-Only Mode)';
+                armButtons.forEach(btn => {
+                    btn.disabled = true;
+                });
+            } else {
+                armStatus.className = 'controller-status controller-disconnected';
+                armStatusText.textContent = 'Disconnected';
+                armButtons.forEach(btn => {
+                    btn.disabled = true;
+                });
+            }
         }
         
         // Function to draw robot on canvas
@@ -928,6 +1142,7 @@ def create_templates():
         
         // Add keyboard controls
         document.addEventListener('keydown', function(event) {
+            // Navigation controls
             switch(event.key.toLowerCase()) {
                 case 'w':
                     sendCommand('move', {direction: 'forward'});
@@ -943,6 +1158,21 @@ def create_templates():
                     break;
                 case 'x':
                     sendCommand('stop');
+                    break;
+                    
+                // Arm controls
+                case 'f':
+                case 'b':
+                case 'l':
+                case 'r':
+                case 'q':
+                case 'e':
+                case 'z':
+                case 'c':
+                case 'v':
+                case 'o':
+                case 'p':
+                    sendArmCommand(event.key.toLowerCase());
                     break;
             }
         });
@@ -1350,6 +1580,27 @@ def init_database():
     conn.close()
     
     logger.info("Database initialized with required tables")
+
+# Add a new endpoint to check for commands without updating status
+@app.route('/api/check_commands', methods=['GET'])
+def check_commands():
+    """API endpoint for robot to check for pending commands without updating status"""
+    try:
+        # Check for pending commands
+        if command_queue:
+            return jsonify({
+                "status": "ok",
+                "has_commands": True,
+                "commands": command_queue[0]  # Send the oldest command
+            })
+        else:
+            return jsonify({
+                "status": "ok",
+                "has_commands": False
+            })
+    except Exception as e:
+        logger.error(f"Error in check_commands: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Create template files
