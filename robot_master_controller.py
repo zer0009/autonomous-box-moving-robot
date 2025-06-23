@@ -569,19 +569,26 @@ class RobotMasterController:
             return "ERROR:NOT_CONNECTED"
         
         # Format command according to the ESP32 NAV code
-        # Based on the logs, we need to send direct commands that match the ESP32 code
+        # Updated to use w,a,s,d,x commands
         if action == "MOVE":
-            # Start motors - Match the command format in ESP32 NAV code
-            command = "IR:ON\n"
+            if param1 == "FORWARD":
+                # Forward movement - w
+                command = "w\n"
+            elif param1 == "BACKWARD":
+                # Backward movement - s
+                command = "s\n"
+            else:
+                # Default to forward
+                command = "w\n"
         elif action == "STOP":
-            # Stop motors
-            command = "IR:OFF\n"
-        elif action == "TURN_LEFT":
-            # Special command for turning left
-            command = "TURN_LEFT\n"
-        elif action == "TURN_RIGHT":
-            # Special command for turning right
-            command = "TURN_RIGHT\n"
+            # Stop - x
+            command = "x\n"
+        elif action == "TURN_LEFT" or (action == "TURN" and param1 == "LEFT"):
+            # Turn left - a
+            command = "a\n"
+        elif action == "TURN_RIGHT" or (action == "TURN" and param1 == "RIGHT"):
+            # Turn right - d
+            command = "d\n"
         else:
             # Default format for other commands
             command = f"{action}\n"
@@ -1125,25 +1132,36 @@ class RobotMasterController:
                 elif angle_diff < -180:
                     angle_diff += 360
                 
-                turn_direction = "LEFT" if angle_diff > 0 else "RIGHT"
-                response = self.send_nav_command("TURN", turn_direction, str(abs(angle_diff)))
-                
-                if "SUCCESS" in response:
-                    self.current_orientation = target_angle
+                # Determine turn direction and execute turn
+                if angle_diff > 0:
+                    # Turn left (a)
+                    print("Turning left...")
+                    response = self.send_nav_command("TURN_LEFT")
+                    time.sleep(abs(angle_diff) / 90)  # Approximate time to turn
+                    self.send_nav_command("STOP")
                 else:
-                    print(f"Turn failed: {response}")
-                    return False
+                    # Turn right (d)
+                    print("Turning right...")
+                    response = self.send_nav_command("TURN_RIGHT")
+                    time.sleep(abs(angle_diff) / 90)  # Approximate time to turn
+                    self.send_nav_command("STOP")
+                
+                self.current_orientation = target_angle
             
             # Move forward
-            distance = self.cell_size
-            response = self.send_nav_command("MOVE", "FORWARD", str(distance))
+            print("Moving forward...")
+            response = self.send_nav_command("MOVE", "FORWARD")
             
-            if "SUCCESS" in response:
-                self.current_position = next_pos
-                print(f"Moved to {self.current_position}")
-            else:
-                print(f"Movement failed: {response}")
-                return False
+            # Wait approximate time to travel one cell
+            cell_travel_time = self.cell_size / 100  # Assuming 100mm/sec speed
+            time.sleep(cell_travel_time)
+            
+            # Stop movement
+            self.send_nav_command("STOP")
+            
+            # Update position
+            self.current_position = next_pos
+            print(f"Moved to {self.current_position}")
             
             # Check for obstacles during movement
             obstacle_data = self.send_nav_command("SCAN")
@@ -1415,32 +1433,34 @@ class RobotMasterController:
         if cmd == "move":
             direction = params.get('direction', 'forward')
             if direction == 'forward':
-                self.send_nav_command("MOVE", "FORWARD", "50")
+                # Forward movement - w
+                self.send_nav_command("MOVE", "FORWARD")
             elif direction == 'backward':
-                self.send_nav_command("MOVE", "BACKWARD", "50")
+                # Backward movement - s
+                self.send_nav_command("MOVE", "BACKWARD")
             elif direction == 'stop':
                 self.send_nav_command("STOP")
         
         elif cmd == "turn":
             direction = params.get('direction', 'left')
             if direction == 'left':
-                # For the new ESP32 NAV, we need to implement turning differently
-                # First stop, then turn left motors forward and right motors backward
+                # Turn left - a
                 self.send_nav_command("TURN_LEFT")
             elif direction == 'right':
-                # First stop, then turn right motors forward and left motors backward
+                # Turn right - d
                 self.send_nav_command("TURN_RIGHT")
         
         elif cmd == "stop":
+            # Stop - x
             self.send_nav_command("STOP")
             self.send_arm_command("STOP")
         
         elif cmd == "grab":
-            # Use the new grab command for the arm
+            # Use the grab command for the arm
             self.send_arm_command("GRIP")
             
         elif cmd == "release":
-            # Use the new release command for the arm
+            # Use the release command for the arm
             self.send_arm_command("GRIP", "OPEN")
         
         elif cmd == "check_sensors":
@@ -1812,26 +1832,35 @@ class RobotMasterController:
         try:
             # Test sequence: forward, stop, turn left, stop, turn right, stop
             print("Moving forward for 2 seconds...")
-            self.send_nav_command("IR:ON")
+            self.send_nav_command("MOVE", "FORWARD")  # w
             time.sleep(2)
             
             print("Stopping...")
-            self.send_nav_command("IR:OFF")
+            self.send_nav_command("STOP")  # x
             time.sleep(1)
             
             print("Turning left for 2 seconds...")
-            self.send_nav_command("TURN_LEFT")
+            self.send_nav_command("TURN_LEFT")  # a
             time.sleep(2)
             
             print("Stopping...")
-            self.send_nav_command("IR:OFF")
+            self.send_nav_command("STOP")  # x
+            time.sleep(1)
             
             print("Turning right for 2 seconds...")
-            self.send_nav_command("TURN_RIGHT")
+            self.send_nav_command("TURN_RIGHT")  # d
             time.sleep(2)
             
             print("Stopping...")
-            self.send_nav_command("IR:OFF")
+            self.send_nav_command("STOP")  # x
+            time.sleep(1)
+            
+            print("Moving backward for 2 seconds...")
+            self.send_nav_command("MOVE", "BACKWARD")  # s
+            time.sleep(2)
+            
+            print("Stopping...")
+            self.send_nav_command("STOP")  # x
             
             print("Navigation motor test complete")
             return True
