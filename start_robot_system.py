@@ -13,24 +13,16 @@ import argparse
 import signal
 import atexit
 
-def start_robot_controller(simulation=True, skip_camera=False, debug=False, auto_confirm=False, env_vars=None):
+def start_robot_controller(skip_camera=False, debug=False, env_vars=None):
     """Start the robot master controller in a separate process"""
     cmd = [sys.executable, "robot_master_controller.py"]
-    if simulation:
-        cmd.append("--simulation")
     if debug:
         cmd.append("--debug")
-    if auto_confirm:
-        cmd.append("--auto-confirm")
-    
     env = os.environ.copy()
     if skip_camera:
         env["SKIP_CAMERA"] = "1"
-    
-    # Add any additional environment variables
     if env_vars:
         env.update(env_vars)
-    
     print(f"Starting robot controller: {' '.join(cmd)}")
     if env_vars:
         print(f"With environment variables: {env_vars}")
@@ -57,8 +49,6 @@ def cleanup_processes(processes):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Start the robot system')
-    parser.add_argument('--no-simulation', action='store_true', 
-                        help='Run with real hardware (default: simulation mode)')
     parser.add_argument('--skip-camera', action='store_true',
                         help='Skip camera detection (useful for headless operation)')
     parser.add_argument('--debug', action='store_true',
@@ -83,11 +73,8 @@ if __name__ == "__main__":
                         help='Run with only arm controller (no navigation controller needed)')
     parser.add_argument('--web-only', action='store_true',
                         help='Run only the web server without the robot controller')
-    parser.add_argument('--auto-confirm', action='store_true',
-                        help='Automatically continue with limited functionality without prompting')
     args = parser.parse_args()
     
-    simulation_mode = not args.no_simulation
     skip_camera = args.skip_camera
     debug_mode = args.debug
     nav_port = args.nav_port
@@ -100,7 +87,6 @@ if __name__ == "__main__":
     nav_only = args.nav_only
     arm_only = args.arm_only
     web_only = args.web_only
-    auto_confirm = args.auto_confirm
     
     # Set environment variables for ports if specified
     env_vars = {}
@@ -151,10 +137,8 @@ if __name__ == "__main__":
         # Start robot controller if not web-only mode
         if not web_only:
             controller_process = start_robot_controller(
-                simulation=simulation_mode, 
                 skip_camera=skip_camera, 
                 debug=debug_mode, 
-                auto_confirm=auto_confirm,
                 env_vars=env_vars
             )
             processes.append(controller_process)

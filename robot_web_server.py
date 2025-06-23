@@ -174,13 +174,7 @@ def api_status():
             "orientation": robot_status["orientation"],
             "robot_busy": robot_status["robot_busy"],
             "pending_tasks": pending,
-            "completed_tasks": completed,
-            "nav_controller_connected": robot_status.get("nav_controller_connected", False),
-            "arm_controller_connected": robot_status.get("arm_controller_connected", False),
-            "nav_only_mode": robot_status.get("nav_only_mode", False),
-            "arm_only_mode": robot_status.get("arm_only_mode", False),
-            "nav_controller_responsive": robot_status.get("nav_controller_responsive", False),
-            "arm_controller_responsive": robot_status.get("arm_controller_responsive", False)
+            "completed_tasks": completed
         }
         
         return jsonify(status)
@@ -318,41 +312,9 @@ def update_robot_status():
         robot_status["pending_tasks"] = data.get("pending_tasks", robot_status["pending_tasks"])
         robot_status["completed_tasks"] = data.get("completed_tasks", robot_status["completed_tasks"])
         
-        # Update controller status
-        robot_status["nav_controller_connected"] = data.get("nav_controller_connected", False)
-        robot_status["arm_controller_connected"] = data.get("arm_controller_connected", False)
-        robot_status["nav_only_mode"] = data.get("nav_only_mode", False)
-        robot_status["arm_only_mode"] = data.get("arm_only_mode", False)
-        robot_status["nav_controller_responsive"] = data.get("nav_controller_responsive", False)
-        robot_status["arm_controller_responsive"] = data.get("arm_controller_responsive", False)
-        
-        # Check for pending commands - return immediately to avoid blocking
-        if command_queue:
-            # Only return the first command that hasn't been sent yet
-            for i, cmd in enumerate(command_queue):
-                if cmd.get("status") == "pending":
-                    # Mark as sent
-                    command_queue[i]["status"] = "sent"
-                    command_queue[i]["sent_time"] = time.time()
-                    
-                    return jsonify({
-                        "status": "ok",
-                        "has_commands": True,
-                        "commands": command_queue[i]
-                    })
-            
-            # If all commands have been sent but not acknowledged
-            return jsonify({
-                "status": "ok",
-                "has_commands": False
-            })
-        else:
-            return jsonify({
-                "status": "ok",
-                "has_commands": False
-            })
+        return jsonify({"status": "updated"})
     except Exception as e:
-        logger.error(f"Error in update_robot_status: {e}")
+        logger.error(f"Error updating robot status: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/command_result', methods=['POST'])
@@ -1048,84 +1010,10 @@ def create_templates():
                 document.getElementById('orientationText').textContent = data.orientation + '°';
                 document.getElementById('statusText').textContent = data.robot_busy ? 'Busy' : 'Idle';
                 
-                // Update controller status
-                updateNavControllerStatus(data);
-                updateArmControllerStatus(data);
-                
                 // Draw robot on canvas
                 drawRobot(data.position, data.orientation);
             })
             .catch(error => console.error('Error fetching status:', error));
-        }
-        
-        // Update navigation controller status
-        function updateNavControllerStatus(data) {
-            const navStatus = document.getElementById('nav-status');
-            const navStatusText = document.getElementById('nav-status-text');
-            const navButtons = document.querySelectorAll('#btn-forward, #btn-backward, #btn-left, #btn-right, #btn-stop, #btn-home');
-            
-            if (data.nav_controller_connected) {
-                if (data.nav_controller_responsive) {
-                    navStatus.className = 'controller-status controller-connected';
-                    navStatusText.textContent = 'Connected';
-                    navButtons.forEach(btn => {
-                        btn.disabled = false;
-                    });
-                } else {
-                    navStatus.className = 'controller-status controller-disconnected';
-                    navStatusText.textContent = 'Connected (Not Responding)';
-                    navButtons.forEach(btn => {
-                        btn.disabled = true;
-                    });
-                }
-            } else if (data.arm_only_mode) {
-                navStatus.className = 'controller-status controller-not-required';
-                navStatusText.textContent = 'Not Required (Arm-Only Mode)';
-                navButtons.forEach(btn => {
-                    btn.disabled = true;
-                });
-            } else {
-                navStatus.className = 'controller-status controller-disconnected';
-                navStatusText.textContent = 'Disconnected';
-                navButtons.forEach(btn => {
-                    btn.disabled = true;
-                });
-            }
-        }
-        
-        // Update arm controller status
-        function updateArmControllerStatus(data) {
-            const armStatus = document.getElementById('arm-status');
-            const armStatusText = document.getElementById('arm-status-text');
-            const armButtons = document.querySelectorAll('.arm-control-btn');
-            
-            if (data.arm_controller_connected) {
-                if (data.arm_controller_responsive) {
-                    armStatus.className = 'controller-status controller-connected';
-                    armStatusText.textContent = 'Connected';
-                    armButtons.forEach(btn => {
-                        btn.disabled = false;
-                    });
-                } else {
-                    armStatus.className = 'controller-status controller-disconnected';
-                    armStatusText.textContent = 'Connected (Not Responding)';
-                    armButtons.forEach(btn => {
-                        btn.disabled = true;
-                    });
-                }
-            } else if (data.nav_only_mode) {
-                armStatus.className = 'controller-status controller-not-required';
-                armStatusText.textContent = 'Not Required (Nav-Only Mode)';
-                armButtons.forEach(btn => {
-                    btn.disabled = true;
-                });
-            } else {
-                armStatus.className = 'controller-status controller-disconnected';
-                armStatusText.textContent = 'Disconnected';
-                armButtons.forEach(btn => {
-                    btn.disabled = true;
-                });
-            }
         }
         
         // Function to draw robot on canvas

@@ -26,10 +26,7 @@ import requests
 import functools
 
 class RobotMasterController:
-    def __init__(self, simulation_mode=False):
-        # Simulation mode flag
-        self.simulation_mode = simulation_mode
-        
+    def __init__(self):
         # Debug mode flag
         self.debug_mode = False
         
@@ -48,36 +45,21 @@ class RobotMasterController:
         self.nav_response_queue = queue.Queue()
         self.arm_response_queue = queue.Queue()
         
-        # Try to establish UART connections if not in simulation mode
-        if not self.simulation_mode:
-            self.connect_uart_devices()
-            # Test communication with connected ESP32 devices
-            if self.nav_uart or self.arm_uart:
-                self.test_esp32_communication()
-        else:
-            print("Running in SIMULATION MODE - No hardware connections required")
-            
+        self.connect_uart_devices()
+        if self.nav_uart or self.arm_uart:
+            self.test_esp32_communication()
         if self.nav_only_mode:
             print("Running in NAV ONLY MODE - Arm controller not required")
-            
         if self.arm_only_mode:
             print("Running in ARM ONLY MODE - Navigation controller not required")
-        
-        # Camera setup with fallback options
         self.camera = None
         self.setup_camera()
-        
-        # Robot state
         self.current_position = (0, 0)  # Grid coordinates
         self.current_orientation = 0    # Degrees
         self.robot_busy = False
         self.obstacle_map = {}
-        
-        # Grid configuration (adjust to your environment)
         self.grid_size = 20  # 20x20 grid
         self.cell_size = 50  # 50mm per cell
-        
-        # Shelf positions (QR code -> grid coordinates with shelf sections)
         self.shelf_positions = {
             'SHELF_A': {
                 'base': (18, 5),
@@ -105,23 +87,12 @@ class RobotMasterController:
             },
             'HOME': (1, 1)
         }
-        
-        # Add a multi-box queue to track boxes being carried
         self.box_queue = []
         self.max_box_capacity = 2  # Maximum boxes the robot can carry at once
-        
-        # Robot state (update to track multiple box carrying)
         self.carrying_boxes = []  # List of boxes currently being carried
-        
-        # Database setup
         self.init_database()
-        
-        # Start communication threads if connections established
-        if (self.nav_uart and self.arm_uart) or self.simulation_mode or self.nav_only_mode or self.arm_only_mode:
-            if self.simulation_mode:
-                self.start_simulation_threads()
-            else:
-                self.start_communication_threads()
+        if (self.nav_uart and self.arm_uart) or self.nav_only_mode or self.arm_only_mode:
+            self.start_communication_threads()
             print("Robot Master Controller Initialized")
         else:
             print("Robot partially initialized - some hardware not connected")
@@ -633,104 +604,8 @@ class RobotMasterController:
             
             time.sleep(0.01)
     
-    def start_simulation_threads(self):
-        """Start simulation threads for testing without hardware"""
-        nav_thread = threading.Thread(target=self.simulation_nav_handler, daemon=True)
-        nav_thread.start()
-        
-        arm_thread = threading.Thread(target=self.simulation_arm_handler, daemon=True)
-        arm_thread.start()
-        
-        print("Simulation threads started")
-    
-    def simulation_nav_handler(self):
-        """Simulate navigation controller responses"""
-        while True:
-            time.sleep(0.1)
-            if not self.nav_response_queue.empty():
-                continue
-                
-            # Simulate occasional position updates
-            if random.random() < 0.05:  # 5% chance each cycle
-                # Simulate small random movements
-                x, y = self.current_position
-                dx = random.choice([-1, 0, 1])
-                dy = random.choice([-1, 0, 1])
-                new_x = max(0, min(self.grid_size-1, x + dx))
-                new_y = max(0, min(self.grid_size-1, y + dy))
-                self.current_position = (new_x, new_y)
-                
-                # Simulate orientation changes
-                self.current_orientation = (self.current_orientation + random.choice([-10, 0, 10])) % 360
-                
-                # Log the simulated movement
-                self.log_event("SIM_MOVE", f"Simulated movement to {self.current_position}")
-    
-    def simulation_arm_handler(self):
-        """Simulate arm controller responses"""
-        while True:
-            time.sleep(0.1)
-            if not self.arm_response_queue.empty():
-                continue
-                
-            # Simulate occasional arm actions
-            if random.random() < 0.02:  # 2% chance each cycle
-                action = random.choice(["GRIP", "RELEASE", "HOME"])
-                self.log_event("SIM_ARM", f"Simulated arm action: {action}")
-    
     def send_nav_command(self, action, param1="", param2="", timeout=10):
         """Send command to navigation ESP32 or simulate response"""
-        if self.simulation_mode:
-            # Simulate response
-            time.sleep(0.2)  # Simulate processing delay
-            
-            # Log the command
-            self.log_event("SIM_NAV_CMD", f"{action}:{param1}:{param2}")
-            
-            # Generate simulated response
-            if action == "MOVE":
-                # Update simulated position
-                if param1 == "FORWARD":
-                    distance = float(param2) if param2 else 50
-                    angle_rad = math.radians(self.current_orientation)
-                    dx = math.cos(angle_rad) * (distance / self.cell_size)
-                    dy = math.sin(angle_rad) * (distance / self.cell_size)
-                    
-                    x, y = self.current_position
-                    new_x = max(0, min(self.grid_size-1, x + round(dx)))
-                    new_y = max(0, min(self.grid_size-1, y + round(dy)))
-                    self.current_position = (new_x, new_y)
-                
-                return "NAV:SUCCESS:MOVE"
-                
-            elif action == "TURN":
-                # Update simulated orientation
-                if param1 == "LEFT":
-                    self.current_orientation = (self.current_orientation + float(param2)) % 360
-                elif param1 == "RIGHT":
-                    self.current_orientation = (self.current_orientation - float(param2)) % 360
-                
-                return "NAV:SUCCESS:TURN"
-                
-            elif action == "STOP":
-                return "NAV:SUCCESS:STOP"
-                
-            elif action == "POSITION":
-                return "NAV:SUCCESS:POSITION"
-                
-            elif action == "SCAN":
-                # Randomly decide if obstacle detected
-                if random.random() < 0.1:  # 10% chance of obstacle
-                    return "NAV:OBSTACLE:FRONT:15"
-                else:
-                    return "NAV:CLEAR:FRONT:50,LEFT:45,RIGHT:48"
-            
-            return "NAV:SUCCESS"
-            
-        elif not self.nav_uart:
-            # Return a silent error code without printing a warning
-            return "ERROR:NOT_CONNECTED"
-        
         # Format command according to the ESP32 NAV code
         # Updated to use w,a,s,d,x commands
         if action == "MOVE":
@@ -824,51 +699,6 @@ class RobotMasterController:
     
     def send_arm_command(self, action, param1="", param2="", timeout=15):
         """Send command to arm ESP32 or simulate response"""
-        if self.simulation_mode:
-            # Simulate response
-            time.sleep(0.3)  # Simulate processing delay
-            
-            # Log the command
-            self.log_event("SIM_ARM_CMD", f"{action}:{param1}:{param2}")
-            
-            # Generate simulated response
-            if action == "PICK":
-                # Simulate successful pickup most of the time
-                if random.random() < 0.9:  # 90% success rate
-                    return "ARM:SUCCESS:PICK"
-                else:
-                    return "ARM:ERROR:PICK:FAILED"
-                    
-            elif action == "PLACE":
-                # Simulate successful placement most of the time
-                if random.random() < 0.9:  # 90% success rate
-                    return "ARM:SUCCESS:PLACE"
-                else:
-                    return "ARM:ERROR:PLACE:FAILED"
-                    
-            elif action == "GRIP":
-                if param1 == "STATUS":
-                    return "ARM:GRIPPED" if random.random() < 0.9 else "ARM:NOT_GRIPPED"
-                elif param1 == "OPEN":
-                    return "ARM:SUCCESS:GRIP_OPEN"
-                else:
-                    return "ARM:SUCCESS:GRIP"
-                    
-            elif action == "HOME":
-                return "ARM:SUCCESS:HOME"
-                
-            elif action == "STOP":
-                return "ARM:SUCCESS:STOP"
-                
-            elif action == "TRANSPORT":
-                return "ARM:SUCCESS:TRANSPORT"
-            
-            return "ARM:SUCCESS"
-            
-        elif not self.arm_uart:
-            # Return a silent error code without printing a warning
-            return "ERROR:NOT_CONNECTED"
-            
         # Format command according to the ESP32 ARM code
         # Based on the logs, we need to send direct commands that match the ESP32 code
         if action == "GRIP":
@@ -1519,13 +1349,7 @@ class RobotMasterController:
             'recent_logs': recent_logs,
             'carrying_boxes': len(self.carrying_boxes),
             'max_box_capacity': self.max_box_capacity,
-            'carried_box_details': [box['id'] for box in self.carrying_boxes],
-            'nav_controller_connected': self.nav_uart is not None,
-            'arm_controller_connected': self.arm_uart is not None,
-            'nav_only_mode': self.nav_only_mode,
-            'arm_only_mode': self.arm_only_mode,
-            'nav_controller_responsive': False,  # Will be updated by status_update_thread
-            'arm_controller_responsive': False   # Will be updated by status_update_thread
+            'carried_box_details': [box['id'] for box in self.carrying_boxes]
         }
         
         return status
@@ -1677,41 +1501,10 @@ class RobotMasterController:
         consecutive_failures = 0
         max_consecutive_failures = 10
         
-        # Track last controller status check time
-        last_status_check = time.time()
-        status_check_interval = 10  # Check controller status every 10 seconds
-        
         while True:
             try:
                 # Get current status
                 status = self.get_status_report()
-                
-                # Check controller status periodically
-                current_time = time.time()
-                if current_time - last_status_check > status_check_interval:
-                    controller_status = self.check_controller_status()
-                    status["nav_controller_responsive"] = controller_status["nav_controller_responsive"]
-                    status["arm_controller_responsive"] = controller_status["arm_controller_responsive"]
-                    last_status_check = current_time
-                    
-                    # If controllers were previously connected but now unresponsive, try to reconnect
-                    if self.nav_uart and not controller_status["nav_controller_responsive"] and not self.arm_only_mode:
-                        print("Navigation controller unresponsive, attempting to reconnect...")
-                        try:
-                            self.nav_uart.close()
-                        except:
-                            pass
-                        self.nav_uart = None
-                        self.connect_uart_devices()
-                        
-                    if self.arm_uart and not controller_status["arm_controller_responsive"] and not self.nav_only_mode:
-                        print("Arm controller unresponsive, attempting to reconnect...")
-                        try:
-                            self.arm_uart.close()
-                        except:
-                            pass
-                        self.arm_uart = None
-                        self.connect_uart_devices()
                 
                 # Use a separate thread for the actual request to avoid blocking
                 def send_status_update():
@@ -1725,17 +1518,6 @@ class RobotMasterController:
                         
                         if response.status_code == 200:
                             consecutive_failures = 0  # Reset failure counter on success
-                            data = response.json()
-                            # Check for commands
-                            if data.get('has_commands', False):
-                                cmd = data.get('commands', {})
-                                # Execute command in a separate thread to avoid blocking
-                                command_thread = threading.Thread(
-                                    target=self.execute_web_command,
-                                    args=(cmd,),
-                                    daemon=True
-                                )
-                                command_thread.start()
                     except requests.exceptions.Timeout:
                         # Timeout is expected sometimes, just continue
                         pass
@@ -1811,11 +1593,11 @@ class RobotMasterController:
         
         elif cmd == "stop":
             # Try to stop both controllers, but don't require both to be connected
-            if self.nav_uart or self.simulation_mode:
+            if self.nav_uart:
                 self.send_nav_command("STOP")
                 command_executed = True
                 
-            if self.arm_uart or self.simulation_mode:
+            if self.arm_uart:
                 self.send_arm_command("STOP")
                 command_executed = True
                 
@@ -1898,13 +1680,13 @@ class RobotMasterController:
         elif cmd == "check_sensors":
             # Get ultrasonic data if nav controller is available
             ultrasonic = {"front": -1, "left": -1, "right": -1}
-            if self.nav_uart or self.simulation_mode:
+            if self.nav_uart:
                 ultrasonic = self.get_ultrasonic_data()
                 command_executed = True
                 
             # Get line tracker data if arm controller is available
             line_trackers = {"raw": [-1, -1, -1, -1, -1]}
-            if self.arm_uart or self.simulation_mode:
+            if self.arm_uart:
                 line_trackers = self.check_line_trackers()
                 command_executed = True
             
@@ -1915,18 +1697,18 @@ class RobotMasterController:
             command_result = "executed"
         
         elif cmd == "emergency_stop":
-            if self.nav_uart or self.simulation_mode:
+            if self.nav_uart:
                 self.send_nav_command("STOP")
                 command_executed = True
                 
-            if self.arm_uart or self.simulation_mode:
+            if self.arm_uart:
                 self.send_arm_command("EMERGENCY")
                 command_executed = True
             
             command_result = "executed"
             
         elif cmd == "clear_emergency":
-            if self.arm_uart or self.simulation_mode:
+            if self.arm_uart:
                 self.send_arm_command("CLEAR_EMERGENCY")
                 command_executed = True
                 
@@ -2397,9 +2179,7 @@ if __name__ == "__main__":
     # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description='Robot Master Controller')
-    parser.add_argument('--simulation', action='store_true', help='Run in simulation mode without hardware')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging for ESP32 communication')
-    parser.add_argument('--auto-confirm', action='store_true', help='Automatically confirm to continue even with limited functionality')
     args = parser.parse_args()
     
     # Configure debug logging if enabled
@@ -2416,7 +2196,7 @@ if __name__ == "__main__":
         logger.info("Debug logging enabled")
     
     try:
-        robot = RobotMasterController(simulation_mode=args.simulation)
+        robot = RobotMasterController()
         
         # Set debug mode if enabled
         if args.debug:
@@ -2424,40 +2204,12 @@ if __name__ == "__main__":
             print("Debug mode enabled - verbose ESP32 communication logging")
         
         # Check if essential components are connected
-        if not robot.camera and not robot.simulation_mode:
+        if not robot.camera:
             print("WARNING: Running without camera - QR code detection disabled")
             
-        if (not robot.nav_uart or not robot.arm_uart) and not robot.simulation_mode:
+        if (not robot.nav_uart or not robot.arm_uart):
             print("WARNING: Running with limited functionality")
-            
-            # If auto-confirm is enabled, continue without prompting
-            if args.auto_confirm:
-                print("Auto-confirm enabled, continuing with limited functionality")
-            else:
-                # Use a timeout for the input prompt
-                import threading
-                import sys
-                
-                user_input = [None]
-                
-                def input_thread():
-                    user_input[0] = input("Do you want to continue anyway? (y/n): ")
-                
-                # Start input thread
-                t = threading.Thread(target=input_thread)
-                t.daemon = True
-                t.start()
-                
-                # Wait for input with timeout
-                t.join(10)  # 10 second timeout
-                
-                # If no input or input is not 'y', exit
-                if user_input[0] is None:
-                    print("\nNo input received, continuing with limited functionality")
-                elif user_input[0].lower() != 'y':
-                    print("Exiting by user request")
-                    robot.shutdown()
-                    exit(0)
+            print("Continuing with available hardware...")
         
         # Start main operation loop
         robot.main_loop()
