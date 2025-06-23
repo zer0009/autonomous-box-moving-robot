@@ -417,6 +417,86 @@ def test_alternative_nav_commands(ser, logger=None):
         except:
             print("Warning: Could not send final stop command")
 
+def test_wasd_nav_commands(ser, logger=None):
+    """Test WASD+X navigation commands"""
+    print("\n=== Testing WASD+X Navigation Commands ===")
+    
+    if not ser:
+        print("Navigation controller not connected")
+        return False
+    
+    try:
+        # First clear any emergency state
+        print("Clearing emergency status...")
+        send_command(ser, "No_Emergency", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test W - Forward
+        print("Testing 'w' command (forward) for 3 seconds...")
+        send_command(ser, "w", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop with X
+        print("Stopping with 'x' command...")
+        send_command(ser, "x", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test S - Backward
+        print("Testing 's' command (backward) for 3 seconds...")
+        send_command(ser, "s", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop with X
+        print("Stopping with 'x' command...")
+        send_command(ser, "x", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test A - Turn Left
+        print("Testing 'a' command (turn left) for 3 seconds...")
+        send_command(ser, "a", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop with X
+        print("Stopping with 'x' command...")
+        send_command(ser, "x", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test D - Turn Right
+        print("Testing 'd' command (turn right) for 3 seconds...")
+        send_command(ser, "d", logger, wait_time=1.0)
+        time.sleep(3)
+        
+        # Stop with X
+        print("Stopping with 'x' command...")
+        send_command(ser, "x", logger, wait_time=1.0)
+        time.sleep(1)
+        
+        # Test sequence of commands
+        print("Testing sequence: forward, left, backward, right, stop")
+        send_command(ser, "w", logger, wait_time=0.5)  # Forward
+        time.sleep(2)
+        send_command(ser, "a", logger, wait_time=0.5)  # Left
+        time.sleep(2)
+        send_command(ser, "s", logger, wait_time=0.5)  # Backward
+        time.sleep(2)
+        send_command(ser, "d", logger, wait_time=0.5)  # Right
+        time.sleep(2)
+        send_command(ser, "x", logger, wait_time=0.5)  # Stop
+        
+        print("WASD+X command test complete")
+        return True
+        
+    except Exception as e:
+        print(f"Error testing WASD+X commands: {e}")
+        return False
+    finally:
+        # Make sure motors are stopped
+        try:
+            send_command(ser, "x", logger, wait_time=1.0)
+            print("Motors stopped")
+        except:
+            print("Warning: Could not send final stop command")
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description='Test ESP32 motors directly')
@@ -427,10 +507,11 @@ def main():
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--esp-now', action='store_true', help='ARM controller communicates via ESP-NOW through NAV')
     parser.add_argument('--alt-commands', action='store_true', help='Try alternative motor control commands')
+    parser.add_argument('--wasd', action='store_true', help='Test WASD+X navigation commands')
     args = parser.parse_args()
     
     # If no specific test is selected, test both
-    if not args.nav and not args.arm:
+    if not args.nav and not args.arm and not args.wasd:
         args.nav = True
         args.arm = True
     
@@ -443,7 +524,7 @@ def main():
     
     # Connect to navigation controller
     nav_ser = None
-    if args.nav:
+    if args.nav or args.wasd:
         if args.nav_port:
             nav_ser = connect_to_port(args.nav_port)
         else:
@@ -508,6 +589,12 @@ def main():
         test_arm_motors(arm_ser, logger)
     elif args.arm:
         print("Arm controller not available for testing")
+    
+    # Test WASD+X navigation commands
+    if args.wasd and nav_ser:
+        test_wasd_nav_commands(nav_ser, logger)
+    elif args.wasd:
+        print("Navigation controller not available for testing WASD+X commands")
     
     # Close serial ports
     if nav_ser:
