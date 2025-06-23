@@ -178,7 +178,9 @@ def api_status():
             "nav_controller_connected": robot_status.get("nav_controller_connected", False),
             "arm_controller_connected": robot_status.get("arm_controller_connected", False),
             "nav_only_mode": robot_status.get("nav_only_mode", False),
-            "arm_only_mode": robot_status.get("arm_only_mode", False)
+            "arm_only_mode": robot_status.get("arm_only_mode", False),
+            "nav_controller_responsive": robot_status.get("nav_controller_responsive", False),
+            "arm_controller_responsive": robot_status.get("arm_controller_responsive", False)
         }
         
         return jsonify(status)
@@ -321,6 +323,8 @@ def update_robot_status():
         robot_status["arm_controller_connected"] = data.get("arm_controller_connected", False)
         robot_status["nav_only_mode"] = data.get("nav_only_mode", False)
         robot_status["arm_only_mode"] = data.get("arm_only_mode", False)
+        robot_status["nav_controller_responsive"] = data.get("nav_controller_responsive", False)
+        robot_status["arm_controller_responsive"] = data.get("arm_controller_responsive", False)
         
         # Check for pending commands - return immediately to avoid blocking
         if command_queue:
@@ -617,7 +621,11 @@ def create_templates():
                                     <p>
                                         <strong>Navigation:</strong> 
                                         {% if robot_status.nav_controller_connected %}
-                                            <span class="badge bg-success">Connected</span>
+                                            {% if robot_status.nav_controller_responsive %}
+                                                <span class="badge bg-success">Connected</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Connected (Not Responding)</span>
+                                            {% endif %}
                                         {% elif robot_status.arm_only_mode %}
                                             <span class="badge bg-secondary">Not Required</span>
                                         {% else %}
@@ -629,7 +637,11 @@ def create_templates():
                                     <p>
                                         <strong>Arm:</strong> 
                                         {% if robot_status.arm_controller_connected %}
-                                            <span class="badge bg-success">Connected</span>
+                                            {% if robot_status.arm_controller_responsive %}
+                                                <span class="badge bg-success">Connected</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Connected (Not Responding)</span>
+                                            {% endif %}
                                         {% elif robot_status.nav_only_mode %}
                                             <span class="badge bg-secondary">Not Required</span>
                                         {% else %}
@@ -1053,11 +1065,19 @@ def create_templates():
             const navButtons = document.querySelectorAll('#btn-forward, #btn-backward, #btn-left, #btn-right, #btn-stop, #btn-home');
             
             if (data.nav_controller_connected) {
-                navStatus.className = 'controller-status controller-connected';
-                navStatusText.textContent = 'Connected';
-                navButtons.forEach(btn => {
-                    btn.disabled = false;
-                });
+                if (data.nav_controller_responsive) {
+                    navStatus.className = 'controller-status controller-connected';
+                    navStatusText.textContent = 'Connected';
+                    navButtons.forEach(btn => {
+                        btn.disabled = false;
+                    });
+                } else {
+                    navStatus.className = 'controller-status controller-disconnected';
+                    navStatusText.textContent = 'Connected (Not Responding)';
+                    navButtons.forEach(btn => {
+                        btn.disabled = true;
+                    });
+                }
             } else if (data.arm_only_mode) {
                 navStatus.className = 'controller-status controller-not-required';
                 navStatusText.textContent = 'Not Required (Arm-Only Mode)';
@@ -1080,11 +1100,19 @@ def create_templates():
             const armButtons = document.querySelectorAll('.arm-control-btn');
             
             if (data.arm_controller_connected) {
-                armStatus.className = 'controller-status controller-connected';
-                armStatusText.textContent = 'Connected';
-                armButtons.forEach(btn => {
-                    btn.disabled = false;
-                });
+                if (data.arm_controller_responsive) {
+                    armStatus.className = 'controller-status controller-connected';
+                    armStatusText.textContent = 'Connected';
+                    armButtons.forEach(btn => {
+                        btn.disabled = false;
+                    });
+                } else {
+                    armStatus.className = 'controller-status controller-disconnected';
+                    armStatusText.textContent = 'Connected (Not Responding)';
+                    armButtons.forEach(btn => {
+                        btn.disabled = true;
+                    });
+                }
             } else if (data.nav_only_mode) {
                 armStatus.className = 'controller-status controller-not-required';
                 armStatusText.textContent = 'Not Required (Nav-Only Mode)';

@@ -13,13 +13,15 @@ import argparse
 import signal
 import atexit
 
-def start_robot_controller(simulation=True, skip_camera=False, debug=False, env_vars=None):
+def start_robot_controller(simulation=True, skip_camera=False, debug=False, auto_confirm=False, env_vars=None):
     """Start the robot master controller in a separate process"""
     cmd = [sys.executable, "robot_master_controller.py"]
     if simulation:
         cmd.append("--simulation")
     if debug:
         cmd.append("--debug")
+    if auto_confirm:
+        cmd.append("--auto-confirm")
     
     env = os.environ.copy()
     if skip_camera:
@@ -81,6 +83,8 @@ if __name__ == "__main__":
                         help='Run with only arm controller (no navigation controller needed)')
     parser.add_argument('--web-only', action='store_true',
                         help='Run only the web server without the robot controller')
+    parser.add_argument('--auto-confirm', action='store_true',
+                        help='Automatically continue with limited functionality without prompting')
     args = parser.parse_args()
     
     simulation_mode = not args.no_simulation
@@ -96,6 +100,7 @@ if __name__ == "__main__":
     nav_only = args.nav_only
     arm_only = args.arm_only
     web_only = args.web_only
+    auto_confirm = args.auto_confirm
     
     # Set environment variables for ports if specified
     env_vars = {}
@@ -149,6 +154,7 @@ if __name__ == "__main__":
                 simulation=simulation_mode, 
                 skip_camera=skip_camera, 
                 debug=debug_mode, 
+                auto_confirm=auto_confirm,
                 env_vars=env_vars
             )
             processes.append(controller_process)

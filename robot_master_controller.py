@@ -517,6 +517,11 @@ class RobotMasterController:
     
     def nav_communication_handler(self):
         """Handle navigation ESP32 communication"""
+        reconnect_attempts = 0
+        max_reconnect_attempts = 5
+        last_reconnect_time = 0
+        reconnect_delay = 5  # seconds between reconnection attempts
+        
         while True:
             try:
                 if self.nav_uart and self.nav_uart.in_waiting:
@@ -524,21 +529,58 @@ class RobotMasterController:
                     if self.debug_mode:
                         self.logger.debug(f"NAV RECV: {response}")
                     self.nav_response_queue.put(response)
+                    # Reset reconnection counter on successful read
+                    reconnect_attempts = 0
+            except (serial.SerialException, OSError) as e:
+                # Handle serial port errors
+                current_time = time.time()
+                if current_time - last_reconnect_time > reconnect_delay:
+                    reconnect_attempts += 1
+                    last_reconnect_time = current_time
+                    
+                    if reconnect_attempts <= max_reconnect_attempts:
+                        print(f"Navigation controller connection lost: {e}")
+                        print(f"Attempting to reconnect (attempt {reconnect_attempts}/{max_reconnect_attempts})...")
+                        
+                        # Close the port if it's still open
+                        try:
+                            if self.nav_uart:
+                                self.nav_uart.close()
+                        except:
+                            pass
+                            
+                        # Try to reconnect
+                        self.nav_uart = None
+                        if not self.arm_only_mode:
+                            self.connect_uart_devices()
+                    else:
+                        if self.nav_uart:
+                            try:
+                                self.nav_uart.close()
+                            except:
+                                pass
+                            self.nav_uart = None
+                        print("Failed to reconnect to navigation controller after multiple attempts")
+                        # Only log once per minute
+                        if current_time % 60 < 1:
+                            self.log_event("ERROR", "Navigation controller disconnected", False)
             except Exception as e:
                 if self.debug_mode:
                     self.logger.error(f"Nav UART error: {e}")
                 else:
-                    print(f"Nav UART error: {e}")
-                # Try to reconnect
-                try:
-                    self.nav_uart.close()
-                    self.connect_uart_devices()
-                except:
-                    pass
+                    # Only print every 30 seconds to avoid flooding the console
+                    if time.time() % 30 < 0.1:
+                        print(f"Nav UART error: {e}")
+            
             time.sleep(0.01)
     
     def arm_communication_handler(self):
         """Handle arm ESP32 communication"""
+        reconnect_attempts = 0
+        max_reconnect_attempts = 5
+        last_reconnect_time = 0
+        reconnect_delay = 5  # seconds between reconnection attempts
+        
         while True:
             try:
                 if self.arm_uart and self.arm_uart.in_waiting:
@@ -546,17 +588,49 @@ class RobotMasterController:
                     if self.debug_mode:
                         self.logger.debug(f"ARM RECV: {response}")
                     self.arm_response_queue.put(response)
+                    # Reset reconnection counter on successful read
+                    reconnect_attempts = 0
+            except (serial.SerialException, OSError) as e:
+                # Handle serial port errors
+                current_time = time.time()
+                if current_time - last_reconnect_time > reconnect_delay:
+                    reconnect_attempts += 1
+                    last_reconnect_time = current_time
+                    
+                    if reconnect_attempts <= max_reconnect_attempts:
+                        print(f"Arm controller connection lost: {e}")
+                        print(f"Attempting to reconnect (attempt {reconnect_attempts}/{max_reconnect_attempts})...")
+                        
+                        # Close the port if it's still open
+                        try:
+                            if self.arm_uart:
+                                self.arm_uart.close()
+                        except:
+                            pass
+                            
+                        # Try to reconnect
+                        self.arm_uart = None
+                        if not self.nav_only_mode:
+                            self.connect_uart_devices()
+                    else:
+                        if self.arm_uart:
+                            try:
+                                self.arm_uart.close()
+                            except:
+                                pass
+                            self.arm_uart = None
+                        print("Failed to reconnect to arm controller after multiple attempts")
+                        # Only log once per minute
+                        if current_time % 60 < 1:
+                            self.log_event("ERROR", "Arm controller disconnected", False)
             except Exception as e:
                 if self.debug_mode:
                     self.logger.error(f"Arm UART error: {e}")
                 else:
-                    print(f"Arm UART error: {e}")
-                # Try to reconnect
-                try:
-                    self.arm_uart.close()
-                    self.connect_uart_devices()
-                except:
-                    pass
+                    # Only print every 30 seconds to avoid flooding the console
+                    if time.time() % 30 < 0.1:
+                        print(f"Arm UART error: {e}")
+            
             time.sleep(0.01)
     
     def start_simulation_threads(self):
@@ -686,35 +760,67 @@ class RobotMasterController:
         if self.debug_mode:
             self.logger.debug(f"NAV SEND: {command.strip()}")
             
-        # Clear input buffer before sending command
-        self.nav_uart.reset_input_buffer()
+        try:
+            # Clear input buffer before sending command
+            if self.nav_uart:
+                self.nav_uart.reset_input_buffer()
+                
+            # Send the command
+            self.nav_uart.write(command.encode())
             
-        # Send the command
-        self.nav_uart.write(command.encode())
-        
-        # Wait for response
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                if self.nav_uart.in_waiting:
-                    response = self.nav_uart.readline().decode().strip()
+            # Wait for response
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    if self.nav_uart and self.nav_uart.in_waiting:
+                        response = self.nav_uart.readline().decode().strip()
+                        if self.debug_mode:
+                            self.logger.debug(f"NAV RESPONSE: {response}")
+                        
+                        # If we got a response, return it
+                        if response:
+                            return response
+                    else:
+                        # Wait a bit before checking again
+                        time.sleep(0.1)
+                except (serial.SerialException, OSError) as e:
+                    # Handle serial port errors
+                    print(f"Navigation controller error during command: {e}")
+                    # Try to reconnect
+                    try:
+                        if self.nav_uart:
+                            self.nav_uart.close()
+                    except:
+                        pass
+                    self.nav_uart = None
+                    if not self.arm_only_mode:
+                        self.connect_uart_devices()
+                    return "ERROR:CONNECTION_LOST"
+                except Exception as e:
                     if self.debug_mode:
-                        self.logger.debug(f"NAV RESPONSE: {response}")
-                    
-                    # If we got a response, return it
-                    if response:
-                        return response
-                else:
-                    # Wait a bit before checking again
-                    time.sleep(0.1)
-            except Exception as e:
-                if self.debug_mode:
-                    self.logger.error(f"Error reading from NAV: {e}")
-                break
-        
-        if self.debug_mode:
-            self.logger.warning(f"NAV TIMEOUT: No response received for {command.strip()}")
-        return "TIMEOUT"
+                        self.logger.error(f"Error reading from NAV: {e}")
+                    break
+            
+            if self.debug_mode:
+                self.logger.warning(f"NAV TIMEOUT: No response received for {command.strip()}")
+            return "TIMEOUT"
+        except (serial.SerialException, OSError) as e:
+            # Handle serial port errors
+            print(f"Navigation controller error sending command: {e}")
+            # Try to reconnect
+            try:
+                if self.nav_uart:
+                    self.nav_uart.close()
+            except:
+                pass
+            self.nav_uart = None
+            if not self.arm_only_mode:
+                self.connect_uart_devices()
+            return "ERROR:CONNECTION_LOST"
+        except Exception as e:
+            if self.debug_mode:
+                self.logger.error(f"Error sending command to NAV: {e}")
+            return f"ERROR:{str(e)}"
     
     def send_arm_command(self, action, param1="", param2="", timeout=15):
         """Send command to arm ESP32 or simulate response"""
@@ -789,35 +895,67 @@ class RobotMasterController:
         if self.debug_mode:
             self.logger.debug(f"ARM SEND: {command.strip()}")
         
-        # Clear input buffer before sending command
-        self.arm_uart.reset_input_buffer()
+        try:
+            # Clear input buffer before sending command
+            if self.arm_uart:
+                self.arm_uart.reset_input_buffer()
+                
+            # Send the command
+            self.arm_uart.write(command.encode())
             
-        # Send the command
-        self.arm_uart.write(command.encode())
-        
-        # Wait for response
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                if self.arm_uart.in_waiting:
-                    response = self.arm_uart.readline().decode().strip()
+            # Wait for response
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    if self.arm_uart and self.arm_uart.in_waiting:
+                        response = self.arm_uart.readline().decode().strip()
+                        if self.debug_mode:
+                            self.logger.debug(f"ARM RESPONSE: {response}")
+                        
+                        # If we got a response, return it
+                        if response:
+                            return response
+                    else:
+                        # Wait a bit before checking again
+                        time.sleep(0.1)
+                except (serial.SerialException, OSError) as e:
+                    # Handle serial port errors
+                    print(f"Arm controller error during command: {e}")
+                    # Try to reconnect
+                    try:
+                        if self.arm_uart:
+                            self.arm_uart.close()
+                    except:
+                        pass
+                    self.arm_uart = None
+                    if not self.nav_only_mode:
+                        self.connect_uart_devices()
+                    return "ERROR:CONNECTION_LOST"
+                except Exception as e:
                     if self.debug_mode:
-                        self.logger.debug(f"ARM RESPONSE: {response}")
-                    
-                    # If we got a response, return it
-                    if response:
-                        return response
-                else:
-                    # Wait a bit before checking again
-                    time.sleep(0.1)
-            except Exception as e:
-                if self.debug_mode:
-                    self.logger.error(f"Error reading from ARM: {e}")
-                break
-        
-        if self.debug_mode:
-            self.logger.warning(f"ARM TIMEOUT: No response received for {command.strip()}")
-        return "TIMEOUT"
+                        self.logger.error(f"Error reading from ARM: {e}")
+                    break
+            
+            if self.debug_mode:
+                self.logger.warning(f"ARM TIMEOUT: No response received for {command.strip()}")
+            return "TIMEOUT"
+        except (serial.SerialException, OSError) as e:
+            # Handle serial port errors
+            print(f"Arm controller error sending command: {e}")
+            # Try to reconnect
+            try:
+                if self.arm_uart:
+                    self.arm_uart.close()
+            except:
+                pass
+            self.arm_uart = None
+            if not self.nav_only_mode:
+                self.connect_uart_devices()
+            return "ERROR:CONNECTION_LOST"
+        except Exception as e:
+            if self.debug_mode:
+                self.logger.error(f"Error sending command to ARM: {e}")
+            return f"ERROR:{str(e)}"
     
     def scan_qr_codes(self):
         """Scan for QR codes in camera view"""
@@ -1385,7 +1523,9 @@ class RobotMasterController:
             'nav_controller_connected': self.nav_uart is not None,
             'arm_controller_connected': self.arm_uart is not None,
             'nav_only_mode': self.nav_only_mode,
-            'arm_only_mode': self.arm_only_mode
+            'arm_only_mode': self.arm_only_mode,
+            'nav_controller_responsive': False,  # Will be updated by status_update_thread
+            'arm_controller_responsive': False   # Will be updated by status_update_thread
         }
         
         return status
@@ -1483,6 +1623,48 @@ class RobotMasterController:
             print(f"Error in main loop: {e}")
             self.shutdown()
     
+    def check_controller_status(self):
+        """Check if ESP32 controllers are still responsive"""
+        nav_status = False
+        arm_status = False
+        
+        # Check navigation controller
+        if self.nav_uart:
+            try:
+                # Send a simple command to check if controller is responsive
+                test_cmd = "IR:OFF\n"
+                self.nav_uart.reset_input_buffer()
+                self.nav_uart.write(test_cmd.encode())
+                time.sleep(0.2)
+                
+                # Check for any response
+                if self.nav_uart.in_waiting:
+                    nav_status = True
+                    self.nav_uart.reset_input_buffer()  # Clear any response
+            except Exception:
+                nav_status = False
+        
+        # Check arm controller
+        if self.arm_uart:
+            try:
+                # Send a simple command to check if controller is responsive
+                test_cmd = "No_Emergency\n"
+                self.arm_uart.reset_input_buffer()
+                self.arm_uart.write(test_cmd.encode())
+                time.sleep(0.2)
+                
+                # Check for any response
+                if self.arm_uart.in_waiting:
+                    arm_status = True
+                    self.arm_uart.reset_input_buffer()  # Clear any response
+            except Exception:
+                arm_status = False
+        
+        return {
+            "nav_controller_responsive": nav_status,
+            "arm_controller_responsive": arm_status
+        }
+
     def status_update_thread(self):
         """Thread to periodically update web server status"""
         # Use a session for connection pooling and better performance
@@ -1495,10 +1677,41 @@ class RobotMasterController:
         consecutive_failures = 0
         max_consecutive_failures = 10
         
+        # Track last controller status check time
+        last_status_check = time.time()
+        status_check_interval = 10  # Check controller status every 10 seconds
+        
         while True:
             try:
                 # Get current status
                 status = self.get_status_report()
+                
+                # Check controller status periodically
+                current_time = time.time()
+                if current_time - last_status_check > status_check_interval:
+                    controller_status = self.check_controller_status()
+                    status["nav_controller_responsive"] = controller_status["nav_controller_responsive"]
+                    status["arm_controller_responsive"] = controller_status["arm_controller_responsive"]
+                    last_status_check = current_time
+                    
+                    # If controllers were previously connected but now unresponsive, try to reconnect
+                    if self.nav_uart and not controller_status["nav_controller_responsive"] and not self.arm_only_mode:
+                        print("Navigation controller unresponsive, attempting to reconnect...")
+                        try:
+                            self.nav_uart.close()
+                        except:
+                            pass
+                        self.nav_uart = None
+                        self.connect_uart_devices()
+                        
+                    if self.arm_uart and not controller_status["arm_controller_responsive"] and not self.nav_only_mode:
+                        print("Arm controller unresponsive, attempting to reconnect...")
+                        try:
+                            self.arm_uart.close()
+                        except:
+                            pass
+                        self.arm_uart = None
+                        self.connect_uart_devices()
                 
                 # Use a separate thread for the actual request to avoid blocking
                 def send_status_update():
@@ -2186,6 +2399,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Robot Master Controller')
     parser.add_argument('--simulation', action='store_true', help='Run in simulation mode without hardware')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging for ESP32 communication')
+    parser.add_argument('--auto-confirm', action='store_true', help='Automatically confirm to continue even with limited functionality')
     args = parser.parse_args()
     
     # Configure debug logging if enabled
@@ -2215,11 +2429,35 @@ if __name__ == "__main__":
             
         if (not robot.nav_uart or not robot.arm_uart) and not robot.simulation_mode:
             print("WARNING: Running with limited functionality")
-            user_input = input("Do you want to continue anyway? (y/n): ")
-            if user_input.lower() != 'y':
-                print("Exiting by user request")
-                robot.shutdown()
-                exit(0)
+            
+            # If auto-confirm is enabled, continue without prompting
+            if args.auto_confirm:
+                print("Auto-confirm enabled, continuing with limited functionality")
+            else:
+                # Use a timeout for the input prompt
+                import threading
+                import sys
+                
+                user_input = [None]
+                
+                def input_thread():
+                    user_input[0] = input("Do you want to continue anyway? (y/n): ")
+                
+                # Start input thread
+                t = threading.Thread(target=input_thread)
+                t.daemon = True
+                t.start()
+                
+                # Wait for input with timeout
+                t.join(10)  # 10 second timeout
+                
+                # If no input or input is not 'y', exit
+                if user_input[0] is None:
+                    print("\nNo input received, continuing with limited functionality")
+                elif user_input[0].lower() != 'y':
+                    print("Exiting by user request")
+                    robot.shutdown()
+                    exit(0)
         
         # Start main operation loop
         robot.main_loop()

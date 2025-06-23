@@ -161,9 +161,34 @@ python3 start_robot_system.py --no-simulation --arm-only
 
 # Run only the web interface without any controllers
 python3 start_robot_system.py --web-only
+
+# Automatically continue when hardware is missing (skip the prompt)
+python3 start_robot_system.py --no-simulation --auto-confirm
 ```
 
-The web interface will clearly indicate which controllers are connected or required.
+The web interface will clearly indicate which controllers are connected or required, including their responsiveness status.
+
+### Error Handling and Reconnection
+
+The system includes robust error handling for hardware connections:
+
+- **Automatic Reconnection**: If a controller disconnects during operation, the system will automatically attempt to reconnect
+- **Connection Status Display**: The web interface shows real-time connection status for each controller
+- **Graceful Degradation**: The system continues to function with limited capabilities when hardware is missing
+- **Non-blocking Communication**: Commands and status updates use non-blocking threads to prevent system lockups
+
+When running with real hardware, you can use these options for better reliability:
+
+```bash
+# Enable debug logging for detailed communication logs
+python3 start_robot_system.py --no-simulation --debug
+
+# Skip the confirmation prompt when hardware is missing
+python3 start_robot_system.py --no-simulation --auto-confirm
+
+# Specify exact ports for the controllers
+python3 start_robot_system.py --no-simulation --nav-port=/dev/ttyUSB0 --arm-port=/dev/ttyACM0
+```
 
 ### Autostart on Boot (optional)
 
