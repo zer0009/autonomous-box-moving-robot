@@ -13,6 +13,7 @@ import threading
 import socket
 import logging
 from datetime import datetime
+import argparse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'robot_secret_key'
@@ -1553,6 +1554,11 @@ def check_commands():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Robot Web Server')
+    parser.add_argument('--port', type=int, default=5000, help='Port to run the server on (default: 5000)')
+    args = parser.parse_args()
+    
     # Create template files
     create_templates()
     
@@ -1570,7 +1576,7 @@ if __name__ == '__main__':
         local_ip = s.getsockname()[0]
         s.close()
         
-        port = 5000
+        port = args.port
         print(f"Starting Robot Web Server...")
         print(f"Access the web interface at: http://{local_ip}:{port}")
         app.run(host='0.0.0.0', port=port, debug=False)
