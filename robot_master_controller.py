@@ -1394,6 +1394,9 @@ class RobotMasterController:
         # Main loop
         try:
             while True:
+                # Check for web commands
+                self.check_web_commands()
+                
                 # Check for QR codes if camera available
                 if self.camera:
                     qr_codes = self.scan_qr_codes()
@@ -2109,6 +2112,25 @@ class RobotMasterController:
         except Exception as e:
             print(f"Error testing arm motors: {e}")
             return False
+
+    def check_web_commands(self):
+        """Check for commands from the web server"""
+        try:
+            import requests
+            response = requests.get('http://localhost:5000/api/check_commands', timeout=1)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('has_commands', False):
+                    command = data.get('commands')
+                    if command:
+                        print(f"Executing web command: {command}")
+                        self.execute_web_command(command)
+                        return True
+        except Exception as e:
+            # Only log if debug mode is enabled to avoid flooding
+            if self.debug_mode:
+                print(f"Error checking web commands: {e}")
+        return False
 
 if __name__ == "__main__":
     robot = None

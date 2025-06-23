@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -75,6 +76,10 @@
                 <div class="card mb-4">
                     <div class="card-header">Navigation Control (WASD+X)</div>
                     <div class="card-body">
+                        <div id="nav-status" class="controller-status">
+                            <strong>Navigation Controller:</strong> <span id="nav-status-text">Checking...</span>
+                        </div>
+                        
                         <div class="text-center mb-4">
                             <div>
                                 <button id="btn-forward" class="btn btn-primary control-btn" onclick="sendCommand('move', {direction: 'forward'})">W
@@ -110,6 +115,10 @@
                 <div class="card mb-4">
                     <div class="card-header">Arm Control</div>
                     <div class="card-body">
+                        <div id="arm-status" class="controller-status">
+                            <strong>Arm Controller:</strong> <span id="arm-status-text">Checking...</span>
+                        </div>
+                        
                         <div class="mb-3">
                             <h5>Base & Movement</h5>
                             <div class="d-flex justify-content-center flex-wrap">

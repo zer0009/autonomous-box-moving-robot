@@ -165,46 +165,15 @@ class RobotIntegration:
         
         try:
             if self.robot_controller:
-                # Execute command on real robot controller
-                if command_type == 'move':
-                    direction = params.get('direction', 'forward')
-                    distance = params.get('distance', 100)
-                    
-                    if direction == 'forward':
-                        result = self.robot_controller.send_nav_command("MOVE", "FORWARD", str(distance))
-                    elif direction == 'backward':
-                        result = self.robot_controller.send_nav_command("MOVE", "BACKWARD", str(distance))
-                    else:
-                        result = "ERROR:INVALID_DIRECTION"
-                        
-                elif command_type == 'turn':
-                    direction = params.get('direction', 'left')
-                    angle = params.get('angle', 90)
-                    
-                    result = self.robot_controller.send_nav_command("TURN", direction.upper(), str(angle))
-                
-                elif command_type == 'stop':
-                    result = self.robot_controller.send_nav_command("STOP")
-                
-                elif command_type == 'home':
-                    # Navigate to home position
-                    home_pos = self.robot_controller.shelf_positions.get('HOME', (1, 1))
-                    self.robot_controller.navigate_to_position(home_pos)
-                    result = "SUCCESS:NAVIGATING_TO_HOME"
-                
-                elif command_type == 'emergency_stop':
-                    result = self.robot_controller.emergency_stop()
-                    
-                else:
-                    result = f"ERROR:UNKNOWN_COMMAND:{command_type}"
+                # Use the robot controller's execute_web_command method which handles WASD commands properly
+                self.robot_controller.execute_web_command(command)
                 
             else:
                 # Mock execution for testing
                 logger.info(f"Mock execution of {command_type}")
                 result = "SUCCESS:MOCK_EXECUTION"
-            
-            # Report command result
-            self.report_command_result(command, result)
+                # Report command result for mock execution
+                self.report_command_result(command, result)
             
         except Exception as e:
             logger.error(f"Error executing command {command_type}: {e}")
