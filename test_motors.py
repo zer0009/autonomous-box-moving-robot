@@ -24,41 +24,84 @@ def setup_logging(debug=False):
     return logging.getLogger("MotorTest")
 
 def find_serial_ports():
-    """Find available serial ports"""
+    """Find available serial ports with better detection"""
     import glob
+    import serial.tools.list_ports
     
-    # Check common Linux/Raspberry Pi serial ports
     available_ports = []
     
-    # Find all tty devices on Linux/Mac
-    if os.name == 'posix':
-        available_ports.extend(glob.glob('/dev/tty*'))
+    # Use serial.tools.list_ports to get detailed port information
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
+        # Print detailed information about each port
+        print(f"\nFound port: {port.device}")
+        print(f"Description: {port.description}")
+        print(f"Hardware ID: {port.hwid}")
+        
+        # Add port to available list
+        available_ports.append(port.device)
     
-    # Find COM ports on Windows
-    elif os.name == 'nt':
-        for i in range(1, 20):
-            port = f"COM{i}"
-            try:
-                s = serial.Serial(port)
-                s.close()
-                available_ports.append(port)
-            except (OSError, serial.SerialException):
-                pass
+    # If no ports found through tools.list_ports, try traditional methods
+    if not available_ports:
+        if os.name == 'posix':
+            # Linux/Mac - Check common USB-Serial patterns
+            patterns = [
+                '/dev/ttyUSB*',  # Standard USB-Serial
+                '/dev/ttyACM*',  # Arduino/ESP32
+                '/dev/tty.usbserial*',  # Mac OS X
+                '/dev/tty.SLAB*'  # Silicon Labs
+            ]
+            for pattern in patterns:
+                available_ports.extend(glob.glob(pattern))
+        
+        elif os.name == 'nt':
+            # Windows - Check COM ports
+            for i in range(1, 20):
+                port = f"COM{i}"
+                try:
+                    s = serial.Serial(port)
+                    s.close()
+                    available_ports.append(port)
+                except (OSError, serial.SerialException):
+                    pass
     
     return available_ports
 
-def connect_to_port(port, baud=9600, timeout=1):
-    """Connect to a serial port"""
+def connect_to_port(port, baud=115200, timeout=1):
+    """Connect to a serial port with enhanced feedback"""
     try:
+        # Try higher baud rate first for ESP32
         ser = serial.Serial(port, baud, timeout=timeout)
-        print(f"Connected to {port}")
+        print(f"\nConnected to {port} at {baud} baud")
+        
+        # Clear any startup garbage
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        time.sleep(2)  # Give ESP32 time to stabilize
+        
+        # Try to get device info
+        print("Querying device information...")
+        ser.write(b"IDENTIFY\n")
+        time.sleep(1)
+        
+        response = ""
+        while ser.in_waiting:
+            try:
+                line = ser.readline().decode(errors='replace').strip()
+                if line:
+                    print(f"Device response: {line}")
+                    response += line + "\n"
+            except Exception as e:
+                print(f"Warning: Error reading response: {e}")
+        
         return ser
+        
     except Exception as e:
         print(f"Failed to connect to {port}: {e}")
         return None
 
 def send_command(ser, command, logger=None, wait_time=0.5):
-    """Send a command to the serial port and return the response"""
+    """Send a command to the serial port and return the response with enhanced feedback"""
     if not ser:
         print("Serial port not connected")
         return None
@@ -70,6 +113,8 @@ def send_command(ser, command, logger=None, wait_time=0.5):
         # Send command
         if logger:
             logger.debug(f"Sending: {command}")
+        print(f"\nSending command: {command}")
+        
         ser.write(f"{command}\n".encode())
         
         # Wait for response
@@ -77,17 +122,26 @@ def send_command(ser, command, logger=None, wait_time=0.5):
         
         # Read response
         response = ""
-        while ser.in_waiting:
-            try:
-                line = ser.readline().decode(errors="replace").strip()
-                if line:
+        start_time = time.time()
+        
+        # Keep reading while there's data or until timeout
+        while ser.in_waiting or (time.time() - start_time < wait_time):
+            if ser.in_waiting:
+                try:
+                    line = ser.readline().decode(errors='replace').strip()
+                    if line:
+                        print(f"Response: {line}")
+                        if logger:
+                            logger.debug(f"Received: {line}")
+                        response += line + "\n"
+                except Exception as e:
                     if logger:
-                        logger.debug(f"Received: {line}")
-                    response += line + "\n"
-            except Exception as e:
-                if logger:
-                    logger.error(f"Error decoding response: {e}")
-                continue
+                        logger.error(f"Error decoding response: {e}")
+                    print(f"Error reading response: {e}")
+                    continue
+            else:
+                # Small delay to prevent busy waiting
+                time.sleep(0.01)
         
         return response
     except Exception as e:
@@ -508,99 +562,86 @@ def main():
     parser.add_argument('--esp-now', action='store_true', help='ARM controller communicates via ESP-NOW through NAV')
     parser.add_argument('--alt-commands', action='store_true', help='Try alternative motor control commands')
     parser.add_argument('--wasd', action='store_true', help='Test WASD+X navigation commands')
+    parser.add_argument('--monitor', action='store_true', help='Just monitor ESP32 feedback without testing')
     args = parser.parse_args()
-    
-    # If no specific test is selected, test both
-    if not args.nav and not args.arm and not args.wasd:
-        args.nav = True
-        args.arm = True
     
     # Set up logging
     logger = setup_logging(args.debug)
     
     # Find available ports
+    print("\nSearching for available serial ports...")
     available_ports = find_serial_ports()
-    print(f"Available serial ports: {available_ports}")
+    
+    if not available_ports:
+        print("No serial ports found!")
+        return
+    
+    print("\nAvailable serial ports:")
+    for i, port in enumerate(available_ports, 1):
+        print(f"{i}. {port}")
     
     # Connect to navigation controller
     nav_ser = None
-    if args.nav or args.wasd:
-        if args.nav_port:
-            nav_ser = connect_to_port(args.nav_port)
-        else:
-            # Try to auto-detect NAV controller
-            for port in available_ports:
-                if 'USB' in port or 'ACM' in port:
-                    print(f"Trying {port} for navigation controller...")
-                    nav_ser = connect_to_port(port)
-                    if nav_ser:
-                        # Test if this is the NAV controller
-                        response = send_command(nav_ser, "IDENTIFY", logger)
-                        if response and ("NAV" in response or "NAVIGATION" in response):
-                            print(f"Found navigation controller on {port}")
-                            break
-                        else:
-                            nav_ser.close()
-                            nav_ser = None
-            
-            if not nav_ser:
-                print("Could not auto-detect navigation controller. Please specify with --nav-port")
+    if args.nav_port:
+        nav_ser = connect_to_port(args.nav_port)
+    else:
+        print("\nAttempting to auto-detect navigation controller...")
+        # Try each available port
+        for port in available_ports:
+            print(f"\nTrying {port}...")
+            nav_ser = connect_to_port(port)
+            if nav_ser:
+                # Test if this is the NAV controller
+                response = send_command(nav_ser, "IDENTIFY", logger)
+                if response and ("NAV" in response.upper() or "NAVIGATION" in response.upper()):
+                    print(f"Successfully identified navigation controller on {port}")
+                    break
+                else:
+                    print("Not a navigation controller, trying next port...")
+                    nav_ser.close()
+                    nav_ser = None
     
-    # Connect to arm controller
-    arm_ser = None
-    if args.arm:
-        if args.esp_now:
-            print("ARM controller communicates via ESP-NOW through the NAV controller")
-            arm_ser = nav_ser  # Use the same serial connection as NAV
-        elif args.arm_port:
-            arm_ser = connect_to_port(args.arm_port)
-        else:
-            # Try to auto-detect ARM controller (only if not using ESP-NOW)
-            for port in available_ports:
-                if port != (nav_ser.port if nav_ser else None) and ('USB' in port or 'ACM' in port):
-                    print(f"Trying {port} for arm controller...")
-                    arm_ser = connect_to_port(port)
-                    if arm_ser:
-                        # Test if this is the ARM controller
-                        response = send_command(arm_ser, "IDENTIFY", logger)
-                        if response and ("ARM" in response or "GRIPPER" in response):
-                            print(f"Found arm controller on {port}")
-                            break
-                        else:
-                            arm_ser.close()
-                            arm_ser = None
-            
-            if not arm_ser and args.arm:
-                print("Could not auto-detect arm controller. Please specify with --arm-port or use --esp-now if it communicates via ESP-NOW")
+    if not nav_ser:
+        print("\nCould not find navigation controller!")
+        return
+    
+    # If just monitoring, enter monitor mode
+    if args.monitor:
+        print("\nEntering monitor mode. Press Ctrl+C to exit.")
+        try:
+            while True:
+                if nav_ser.in_waiting:
+                    try:
+                        line = nav_ser.readline().decode(errors='replace').strip()
+                        if line:
+                            print(f"ESP32: {line}")
+                    except Exception as e:
+                        print(f"Error reading: {e}")
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            print("\nExiting monitor mode...")
+        finally:
+            nav_ser.close()
+            return
+    
+    # If no specific test is selected, test navigation
+    if not args.nav and not args.arm and not args.wasd:
+        args.nav = True
     
     # Test navigation motors
-    if args.nav and nav_ser:
+    if args.nav:
         if args.alt_commands:
             test_alternative_nav_commands(nav_ser, logger)
         else:
             test_nav_motors(nav_ser, logger)
-    elif args.nav:
-        print("Navigation controller not available for testing")
-    
-    # Test arm motors
-    if args.arm and args.esp_now and nav_ser:
-        test_esp_now_arm(nav_ser, logger)
-    elif args.arm and arm_ser:
-        test_arm_motors(arm_ser, logger)
-    elif args.arm:
-        print("Arm controller not available for testing")
     
     # Test WASD+X navigation commands
-    if args.wasd and nav_ser:
+    if args.wasd:
         test_wasd_nav_commands(nav_ser, logger)
-    elif args.wasd:
-        print("Navigation controller not available for testing WASD+X commands")
     
-    # Close serial ports
+    # Close serial port
     if nav_ser:
         nav_ser.close()
-    if arm_ser and arm_ser != nav_ser:  # Don't close twice if they're the same
-        arm_ser.close()
 
 if __name__ == "__main__":
     main() 
