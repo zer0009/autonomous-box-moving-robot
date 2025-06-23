@@ -293,11 +293,6 @@ class RobotMasterController:
     
     def setup_camera(self):
         """Setup camera with fallback options for USB cameras"""
-        # Skip camera setup in simulation mode if requested
-        if self.simulation_mode and os.environ.get('SKIP_CAMERA', '0') == '1':
-            print("Skipping camera setup in simulation mode (SKIP_CAMERA=1)")
-            return
-            
         # Try different camera indices - expanded range to include higher indices
         # First check standard indices 0-2
         for camera_index in [0, 1, 2]:
@@ -397,14 +392,11 @@ class RobotMasterController:
         
         if not self.camera:
             print("WARNING: No camera connected! QR code functionality disabled.")
-            if self.simulation_mode:
-                print("In simulation mode, QR codes will be simulated.")
-            else:
-                print("Check camera connections and permissions.")
-                print("On Raspberry Pi, ensure the camera is enabled with 'sudo raspi-config'")
-                print("Check permissions with 'ls -l /dev/video*'")
-                print("Available video devices: " + ", ".join([f"/dev/video{i}" for i in range(19, 36) if os.path.exists(f"/dev/video{i}")]))
-                
+            print("Check camera connections and permissions.")
+            print("On Raspberry Pi, ensure the camera is enabled with 'sudo raspi-config'")
+            print("Check permissions with 'ls -l /dev/video*'")
+            print("Available video devices: " + ", ".join([f"/dev/video{i}" for i in range(19, 36) if os.path.exists(f"/dev/video{i}")]))
+    
     def init_database(self):
         """Initialize SQLite database for tracking boxes and tasks"""
         self.db = sqlite3.connect('robot_tasks.db', check_same_thread=False)
@@ -790,14 +782,6 @@ class RobotMasterController:
     def scan_qr_codes(self):
         """Scan for QR codes in camera view"""
         if not self.camera:
-            # In simulation mode, occasionally return simulated QR codes
-            if self.simulation_mode and random.random() < 0.05:  # 5% chance
-                simulated_qr = {
-                    'data': f"BOX_SIM{random.randint(1000, 9999)}_SHELF_A_SECTION_A1_WEIGHT_1.5",
-                    'position': (320, 240),
-                    'type': 'box'
-                }
-                return [simulated_qr]
             return []
             
         try:
@@ -1420,22 +1404,6 @@ class RobotMasterController:
                         elif qr['type'] == 'floor_marker':
                             # Update position from floor marker
                             self.update_position_from_qr(qr['data'])
-                elif self.simulation_mode:
-                    # In simulation mode, randomly simulate finding a box
-                    if random.random() < 0.01:  # 1% chance each cycle
-                        box_id = f"SIM_BOX_{random.randint(1000, 9999)}"
-                        shelf = random.choice(['A', 'B', 'C'])
-                        section = f"{shelf}{random.randint(1, 3)}"
-                        weight = round(random.uniform(0.5, 3.0), 1)
-                        
-                        # Create simulated QR data with correct format
-                        qr_data = f"BOX_{box_id}_SHELF_{shelf}_SECTION_{section}_WEIGHT_{weight}"
-                        
-                        # Log the simulated find
-                        self.log_event("SIM_FIND", f"Simulated finding box: {qr_data}")
-                        
-                        # Process the simulated box
-                        self.process_box_task(qr_data)
                 
                 # Sleep to prevent CPU overuse
                 time.sleep(0.1)
@@ -1822,23 +1790,7 @@ class RobotMasterController:
 
     def get_ultrasonic_data(self):
         """Get ultrasonic sensor data from the navigation ESP32"""
-        if self.simulation_mode:
-            # Simulate ultrasonic sensor readings
-            front = random.randint(30, 200)
-            left = random.randint(30, 200)
-            right = random.randint(30, 200)
-            
-            # Occasionally simulate an obstacle
-            if random.random() < 0.1:  # 10% chance
-                front = random.randint(5, 20)
-                
-            return {
-                "front": front,
-                "left": left,
-                "right": right
-            }
-        
-        elif not self.nav_uart:
+        if not self.nav_uart:
             print("Navigation controller not connected!")
             return {
                 "front": -1,
@@ -1887,22 +1839,7 @@ class RobotMasterController:
 
     def check_line_trackers(self):
         """Check line tracker sensors on the ARM ESP32"""
-        if self.simulation_mode:
-            # Simulate line tracker readings
-            # Generate 5 random binary values (0 or 1)
-            trackers = [random.randint(0, 1) for _ in range(5)]
-            
-            # Format: [left_outer, left_inner, center, right_inner, right_outer]
-            return {
-                "left_outer": trackers[0],
-                "left_inner": trackers[1],
-                "center": trackers[2],
-                "right_inner": trackers[3],
-                "right_outer": trackers[4],
-                "raw": trackers
-            }
-        
-        elif not self.arm_uart:
+        if not self.arm_uart:
             print("Arm controller not connected!")
             return {
                 "left_outer": -1,
