@@ -1697,11 +1697,11 @@ class RobotMasterController:
                 command_result = response if response else "executed"
             
             # Gripper control
-            elif arm_cmd == 'o':  # Gripper Open
+            elif arm_cmd == 'g':  # Gripper Open
                 response = self.send_arm_command("GRIP", "OPEN")
                 command_executed = True
                 command_result = response if response else "executed"
-            elif arm_cmd == 'p':  # Gripper Close
+            elif arm_cmd == 'h':  # Gripper Close
                 response = self.send_arm_command("GRIP")
                 command_executed = True
         
