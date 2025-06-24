@@ -906,10 +906,10 @@ def create_templates():
                         <div class="mb-3">
                             <h5>Gripper</h5>
                             <div class="d-flex justify-content-center">
-                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('o')">O
+                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('g')">G
                                     <span class="key-hint">Open</span>
                                 </button>
-                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('p')">P
+                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('h')">H
                                     <span class="key-hint">Close</span>
                                 </button>
                             </div>
@@ -964,7 +964,7 @@ def create_templates():
                                     <li><strong>Q, E</strong> - Rotate base (Left, Right)</li>
                                     <li><strong>Z, X</strong> - Shoulder (Down, Up)</li>
                                     <li><strong>C, V</strong> - Elbow (Down, Up)</li>
-                                    <li><strong>O, P</strong> - Gripper (Open, Close)</li>
+                                    <li><strong>G, H</strong> - Gripper (Open, Close)</li>
                                 </ul>
                             </div>
                         </div>
@@ -1121,8 +1121,8 @@ def create_templates():
                 case 'z':
                 case 'c':
                 case 'v':
-                case 'o':
-                case 'p':
+                case 'g':
+                case 'h':
                     sendArmCommand(event.key.toLowerCase());
                     break;
             }
