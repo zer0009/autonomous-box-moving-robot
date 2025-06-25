@@ -862,49 +862,43 @@ def create_templates():
                         </div>
                         
                         <div class="mb-3">
-                            <h5>Arm Power</h5>
+                            <h5>Base & Movement</h5>
                             <div class="d-flex justify-content-center flex-wrap">
-                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('z')">Z
-                                    <span class="key-hint">Enable</span>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('f')">F
+                                    <span class="key-hint">Forward</span>
                                 </button>
-                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('x')">X
-                                    <span class="key-hint">Disable</span>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('b')">B
+                                    <span class="key-hint">Back</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('l')">L
+                                    <span class="key-hint">Left</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('r')">R
+                                    <span class="key-hint">Right</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('q')">Q
+                                    <span class="key-hint">Rotate L</span>
+                                </button>
+                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('e')">E
+                                    <span class="key-hint">Rotate R</span>
                                 </button>
                             </div>
                         </div>
                         
                         <div class="mb-3">
-                            <h5>Base Control</h5>
+                            <h5>Arm Joints</h5>
                             <div class="d-flex justify-content-center flex-wrap">
-                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('w')">W
-                                    <span class="key-hint">Base +</span>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('z')">Z
+                                    <span class="key-hint">Shoulder ↓</span>
                                 </button>
-                                <button class="btn btn-secondary arm-btn arm-control-btn" onclick="sendArmCommand('s')">S
-                                    <span class="key-hint">Base -</span>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('x')">X
+                                    <span class="key-hint">Shoulder ↑</span>
                                 </button>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <h5>Shoulder Control</h5>
-                            <div class="d-flex justify-content-center flex-wrap">
-                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('a')">A
-                                    <span class="key-hint">Shoulder +</span>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('c')">C
+                                    <span class="key-hint">Elbow ↓</span>
                                 </button>
-                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('d')">D
-                                    <span class="key-hint">Shoulder -</span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <h5>Elbow Control</h5>
-                            <div class="d-flex justify-content-center flex-wrap">
-                                <button class="btn btn-primary arm-btn arm-control-btn" onclick="sendArmCommand('q')">Q
-                                    <span class="key-hint">Elbow +</span>
-                                </button>
-                                <button class="btn btn-primary arm-btn arm-control-btn" onclick="sendArmCommand('e')">E
-                                    <span class="key-hint">Elbow -</span>
+                                <button class="btn btn-info arm-btn arm-control-btn" onclick="sendArmCommand('v')">V
+                                    <span class="key-hint">Elbow ↑</span>
                                 </button>
                             </div>
                         </div>
@@ -912,10 +906,10 @@ def create_templates():
                         <div class="mb-3">
                             <h5>Gripper</h5>
                             <div class="d-flex justify-content-center">
-                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('i')">I
+                                <button class="btn btn-success arm-btn arm-control-btn" onclick="sendArmCommand('g')">G
                                     <span class="key-hint">Open</span>
                                 </button>
-                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('o')">O
+                                <button class="btn btn-danger arm-btn arm-control-btn" onclick="sendArmCommand('h')">H
                                     <span class="key-hint">Close</span>
                                 </button>
                             </div>
@@ -966,12 +960,11 @@ def create_templates():
                             <div class="col-md-6">
                                 <h5>Arm Controls</h5>
                                 <ul>
-                                    <li><strong>Z</strong> - Enable arm</li>
-                                    <li><strong>X</strong> - Disable arm</li>
-                                    <li><strong>W, S</strong> - Base control (+, -)</li>
-                                    <li><strong>A, D</strong> - Shoulder control (+, -)</li>
-                                    <li><strong>Q, E</strong> - Elbow control (+, -)</li>
-                                    <li><strong>I, O</strong> - Gripper (Open, Close)</li>
+                                    <li><strong>F, B, L, R</strong> - Move arm (Forward, Back, Left, Right)</li>
+                                    <li><strong>Q, E</strong> - Rotate base (Left, Right)</li>
+                                    <li><strong>Z, X</strong> - Shoulder (Down, Up)</li>
+                                    <li><strong>C, V</strong> - Elbow (Down, Up)</li>
+                                    <li><strong>G, H</strong> - Gripper (Open, Close)</li>
                                 </ul>
                             </div>
                         </div>
@@ -1103,56 +1096,34 @@ def create_templates():
             // Navigation controls
             switch(event.key.toLowerCase()) {
                 case 'w':
-                    if(event.ctrlKey || event.altKey) {
-                        sendArmCommand('w'); // Base +
-                    } else {
-                        sendCommand('move', {direction: 'forward'});
-                    }
+                    sendCommand('move', {direction: 'forward'});
                     break;
                 case 'a':
-                    if(event.ctrlKey || event.altKey) {
-                        sendArmCommand('a'); // Shoulder +
-                    } else {
-                        sendCommand('turn', {direction: 'left'});
-                    }
+                    sendCommand('turn', {direction: 'left'});
                     break;
                 case 's':
-                    if(event.ctrlKey || event.altKey) {
-                        sendArmCommand('s'); // Base -
-                    } else {
-                        sendCommand('move', {direction: 'backward'});
-                    }
+                    sendCommand('move', {direction: 'backward'});
                     break;
                 case 'd':
-                    if(event.ctrlKey || event.altKey) {
-                        sendArmCommand('d'); // Shoulder -
-                    } else {
-                        sendCommand('turn', {direction: 'right'});
-                    }
+                    sendCommand('turn', {direction: 'right'});
                     break;
                 case 'x':
-                    if(event.ctrlKey || event.altKey) {
-                        sendArmCommand('x'); // Disable arm
-                    } else {
-                        sendCommand('stop');
-                    }
+                    sendCommand('stop');
                     break;
-                
-                // Arm-only controls
-                case 'z':
-                    sendArmCommand('z'); // Enable arm
-                    break;
+                    
+                // Arm controls
+                case 'f':
+                case 'b':
+                case 'l':
+                case 'r':
                 case 'q':
-                    sendArmCommand('q'); // Elbow +
-                    break;
                 case 'e':
-                    sendArmCommand('e'); // Elbow -
-                    break;
-                case 'i':
-                    sendArmCommand('i'); // Gripper open
-                    break;
-                case 'o':
-                    sendArmCommand('o'); // Gripper close
+                case 'z':
+                case 'c':
+                case 'v':
+                case 'g':
+                case 'h':
+                    sendArmCommand(event.key.toLowerCase());
                     break;
             }
         });
