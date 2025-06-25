@@ -491,17 +491,32 @@ class RobotMasterController:
         last_reconnect_time = 0
         reconnect_delay = 5  # seconds between reconnection attempts
         
+        # List of commands that should be blocked for NAV controller
+        blocked_commands = ['g', 'h']  # These are gripper commands
+        
         while True:
             try:
                 if self.nav_uart and self.nav_uart.in_waiting > 0:
                     try:
-                        response = self.nav_uart.readline().decode(errors='replace').strip()
+                        # Read a line from the NAV controller
+                        line = self.nav_uart.readline()
+                        # Try to decode as text
+                        response = line.decode(errors='replace').strip()
+                        
+                        # Process only if there's actual content
                         if response:
-                            if self.debug_mode:
-                                self.logger.debug(f"NAV RECV: {response}")
-                            self.nav_response_queue.put(response)
-                            # Reset reconnection counter on successful read
-                            reconnect_attempts = 0
+                            # Check if response contains any blocked commands
+                            if any(cmd in response for cmd in blocked_commands):
+                                if self.debug_mode:
+                                    self.logger.warning(f"Blocked command in NAV response: {response}")
+                                # Clear input buffer to prevent command execution
+                                self.nav_uart.reset_input_buffer()
+                            else:
+                                if self.debug_mode:
+                                    self.logger.debug(f"NAV RECV: {response}")
+                                self.nav_response_queue.put(response)
+                                # Reset reconnection counter on successful read
+                                reconnect_attempts = 0
                     except UnicodeDecodeError:
                         # Sometimes we get binary garbage from the serial port
                         if self.debug_mode:
@@ -563,15 +578,27 @@ class RobotMasterController:
         last_reconnect_time = 0
         reconnect_delay = 5  # seconds between reconnection attempts
         
+        # Track time of last gripper command for special handling
+        last_gripper_command_time = 0
+        gripper_commands = ["RELEASE", "GRAB"]
+        
         while True:
             try:
                 if self.arm_uart and self.arm_uart.in_waiting:
-                    response = self.arm_uart.readline().decode().strip()
-                    if self.debug_mode:
-                        self.logger.debug(f"ARM RECV: {response}")
-                    self.arm_response_queue.put(response)
-                    # Reset reconnection counter on successful read
-                    reconnect_attempts = 0
+                    try:
+                        response = self.arm_uart.readline().decode(errors='replace').strip()
+                        if response:
+                            if self.debug_mode:
+                                self.logger.debug(f"ARM RECV: {response}")
+                            self.arm_response_queue.put(response)
+                            # Reset reconnection counter on successful read
+                            reconnect_attempts = 0
+                    except UnicodeDecodeError:
+                        # Sometimes we get binary garbage from the serial port
+                        if self.debug_mode:
+                            self.logger.warning("Received non-text data from ARM controller")
+                        # Clear the buffer
+                        self.arm_uart.reset_input_buffer()
             except (serial.SerialException, OSError) as e:
                 # Handle serial port errors
                 current_time = time.time()
@@ -641,6 +668,11 @@ class RobotMasterController:
         else:
             # Default format for other commands
             command = f"{action}\n"
+            
+        # Safety check - block 'g' and 'h' commands which should only go to the arm controller
+        if command.strip() in ['g', 'h']:
+            print(f"WARNING: Attempt to send gripper command '{command.strip()}' to navigation controller blocked")
+            return "ERROR:WRONG_CONTROLLER"
             
         # Log command if in debug mode
         if self.debug_mode:
@@ -755,20 +787,40 @@ class RobotMasterController:
         if self.debug_mode:
             self.logger.debug(f"ARM SEND: {command.strip()}")
         
+        # Check if arm controller is connected
+        if not self.arm_uart:
+            print("Arm controller not connected!")
+            return "ERROR:NOT_CONNECTED"
+            
         try:
             # Clear input buffer before sending command
-            if self.arm_uart:
-                self.arm_uart.reset_input_buffer()
+            self.arm_uart.reset_input_buffer()
                 
             # Send the command
             self.arm_uart.write(command.encode())
+            print(f"Sent command to ARM: {command.strip()}")
             
-            # Wait for response
+            # Gripper commands often don't get a response, so handle them specially
+            if command.strip() in ["RELEASE", "GRAB"]:
+                # Wait a short time for any immediate response
+                time.sleep(0.5)
+                
+                # Check for any response but don't require one
+                if self.arm_uart.in_waiting > 0:
+                    response = self.arm_uart.readline().decode(errors='replace').strip()
+                    if self.debug_mode:
+                        self.logger.debug(f"ARM RESPONSE: {response}")
+                    return response if response else "OK"
+                else:
+                    # For gripper commands, no response is common and acceptable
+                    return "OK"
+            
+            # For other commands, wait for response
             start_time = time.time()
             while time.time() - start_time < timeout:
                 try:
-                    if self.arm_uart and self.arm_uart.in_waiting:
-                        response = self.arm_uart.readline().decode().strip()
+                    if self.arm_uart and self.arm_uart.in_waiting > 0:
+                        response = self.arm_uart.readline().decode(errors='replace').strip()
                         if self.debug_mode:
                             self.logger.debug(f"ARM RESPONSE: {response}")
                         
@@ -1588,6 +1640,12 @@ class RobotMasterController:
         command_executed = False
         command_result = "failed"
         
+        # Clear input buffers before sending new commands to prevent command backlog
+        if self.nav_uart:
+            self.nav_uart.reset_input_buffer()
+        if self.arm_uart:
+            self.arm_uart.reset_input_buffer()
+        
         # Navigation commands
         if cmd == "move":
             direction = params.get('direction', 'forward')
@@ -1696,14 +1754,21 @@ class RobotMasterController:
                 command_executed = True
                 command_result = response if response else "executed"
             
-            # Gripper control
+            # Gripper control - ensure these commands go to the arm controller only
             elif arm_cmd == 'g':  # Gripper Open
-                response = self.send_arm_command("GRIP", "OPEN")
-                command_executed = True
-                command_result = response if response else "executed"
+                if self.arm_uart:
+                    response = self.send_arm_command("GRIP", "OPEN")
+                    command_executed = True
+                    command_result = response if response else "executed"
+                else:
+                    command_result = "ARM_NOT_CONNECTED"
             elif arm_cmd == 'h':  # Gripper Close
-                response = self.send_arm_command("GRIP")
-                command_executed = True
+                if self.arm_uart:
+                    response = self.send_arm_command("GRIP")
+                    command_executed = True
+                    command_result = response if response else "executed"
+                else:
+                    command_result = "ARM_NOT_CONNECTED"
         
         elif cmd == "check_sensors":
             # Get ultrasonic data if nav controller is available
@@ -2217,6 +2282,37 @@ class RobotMasterController:
             print(f"Error testing arm motors: {e}")
             return False
 
+    def clear_command_buffers(self):
+        """Clear command buffers for both controllers to reset state"""
+        try:
+            if self.nav_uart:
+                self.nav_uart.reset_input_buffer()
+                self.nav_uart.reset_output_buffer()
+                print("Navigation controller buffers cleared")
+                
+            if self.arm_uart:
+                self.arm_uart.reset_input_buffer()
+                self.arm_uart.reset_output_buffer()
+                print("Arm controller buffers cleared")
+                
+            # Also clear response queues
+            while not self.nav_response_queue.empty():
+                try:
+                    self.nav_response_queue.get_nowait()
+                except:
+                    pass
+                    
+            while not self.arm_response_queue.empty():
+                try:
+                    self.arm_response_queue.get_nowait()
+                except:
+                    pass
+                    
+            return True
+        except Exception as e:
+            print(f"Error clearing command buffers: {e}")
+            return False
+
     def check_web_commands(self):
         """Check for commands from the web server"""
         try:
@@ -2225,6 +2321,9 @@ class RobotMasterController:
             if response.status_code == 200:
                 data = response.json()
                 if data.get('has_commands', False):
+                    # Clear buffers before processing new commands to prevent backlog
+                    self.clear_command_buffers()
+                    
                     command = data.get('commands')
                     if command:
                         print(f"Executing web command: {command}")

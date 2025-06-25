@@ -259,6 +259,26 @@
             sendCommand('arm_move', {arm_cmd: arm_cmd});
         }
         
+        // Add command throttling to prevent overwhelming the system
+        let lastCommandTime = 0;
+        const MIN_COMMAND_INTERVAL = 150; // milliseconds between commands
+        
+        function throttledSendCommand(command, params = {}) {
+            const now = Date.now();
+            if (now - lastCommandTime >= MIN_COMMAND_INTERVAL) {
+                lastCommandTime = now;
+                sendCommand(command, params);
+            }
+        }
+        
+        function throttledSendArmCommand(arm_cmd) {
+            const now = Date.now();
+            if (now - lastCommandTime >= MIN_COMMAND_INTERVAL) {
+                lastCommandTime = now;
+                sendArmCommand(arm_cmd);
+            }
+        }
+        
         // Function to update robot status
         function updateRobotStatus() {
             fetch('/api/status')
@@ -348,24 +368,24 @@
             });
         }
         
-        // Add keyboard controls
+        // Handle keyboard input with throttling
         document.addEventListener('keydown', function(event) {
             // Navigation controls
             switch(event.key.toLowerCase()) {
                 case 'w':
-                    sendCommand('move', {direction: 'forward'});
+                    throttledSendCommand('move', {direction: 'forward'});
                     break;
                 case 'a':
-                    sendCommand('turn', {direction: 'left'});
+                    throttledSendCommand('turn', {direction: 'left'});
                     break;
                 case 's':
-                    sendCommand('move', {direction: 'backward'});
+                    throttledSendCommand('move', {direction: 'backward'});
                     break;
                 case 'd':
-                    sendCommand('turn', {direction: 'right'});
+                    throttledSendCommand('turn', {direction: 'right'});
                     break;
                 case 'x':
-                    sendCommand('stop');
+                    throttledSendCommand('stop');
                     break;
                     
                 // Arm controls
@@ -380,7 +400,7 @@
                 case 'v':
                 case 'g':
                 case 'h':
-                    sendArmCommand(event.key.toLowerCase());
+                    throttledSendArmCommand(event.key.toLowerCase());
                     break;
             }
         });
