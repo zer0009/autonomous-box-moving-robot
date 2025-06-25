@@ -1081,6 +1081,351 @@ class RobotMasterController:
                 print(f"Error checking web commands: {e}")
         return False
 
+    def identify_esp32_device(self, port):
+        """Try to identify if a port is connected to a NAV or ARM ESP32 controller"""
+        try:
+            # Try to open the port
+            ser = serial.Serial(port, 9600, timeout=1)
+            time.sleep(0.5)  # Give device time to initialize
+            
+            # Clear any pending data
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+            
+            # Send identify command
+            ser.write("IDENTIFY\n".encode())
+            time.sleep(0.5)
+            
+            # Check for response
+            if ser.in_waiting > 0:
+                response = ser.readline().decode(errors='replace').strip().upper()
+                if "NAV" in response or "NAVIGATION" in response:
+                    print(f"Identified navigation controller on {port}")
+                    return "NAV", ser
+                elif "ARM" in response or "GRIPPER" in response:
+                    print(f"Identified arm controller on {port}")
+                    return "ARM", ser
+            
+            # If no response to IDENTIFY, try specific commands
+            # Try NAV-specific command
+            ser.reset_input_buffer()
+            ser.write("x\n".encode())  # Stop command for navigation
+            time.sleep(0.5)
+            
+            # Try ARM-specific command
+            ser.reset_input_buffer()
+            ser.write("z\n".encode())  # Enable arm command
+            time.sleep(0.5)
+            if ser.in_waiting > 0:
+                response = ser.readline().decode(errors='replace').strip()
+                if response:
+                    print(f"Got response from {port} after arm command: {response}")
+                    return "ARM", ser
+            
+            # Try another ARM-specific command
+            ser.reset_input_buffer()
+            ser.write("i\n".encode())  # Open gripper command
+            time.sleep(0.5)
+            if ser.in_waiting > 0:
+                response = ser.readline().decode(errors='replace').strip()
+                if response:
+                    print(f"Got response from {port} after gripper command: {response}")
+                    return "ARM", ser
+            
+            # If we got here, couldn't identify the device
+            print(f"Could not identify device on {port}")
+            return "UNKNOWN", ser
+            
+        except Exception as e:
+            print(f"Error checking port {port}: {e}")
+            return "ERROR", None
+    
+    def test_esp32_communication(self):
+        """Test communication with ESP32 controllers"""
+        print("Testing communication with ESP32 controllers...")
+        
+        # Test navigation controller if connected
+        if self.nav_uart and not self.arm_only_mode:
+            print("Testing navigation controller...")
+            try:
+                # Send stop command to test communication
+                response = self.send_nav_command("STOP")
+                if "ERROR" in response:
+                    print(f"Navigation controller test failed: {response}")
+                else:
+                    print("Navigation controller test successful")
+            except Exception as e:
+                print(f"Navigation controller test error: {e}")
+        
+        # Test arm controller if connected
+        if self.arm_uart and not self.nav_only_mode:
+            print("Testing arm controller...")
+            try:
+                # First enable the arm
+                response = self.send_arm_command("ENABLE")
+                if "ERROR" in response:
+                    print(f"Arm controller enable test failed: {response}")
+                else:
+                    print("Arm controller enable test successful")
+                    
+                # Then test gripper
+                time.sleep(0.5)
+                response = self.send_arm_command("GRIP", "OPEN")
+                if "ERROR" in response:
+                    print(f"Arm controller gripper test failed: {response}")
+                else:
+                    print("Arm controller gripper test successful")
+            except Exception as e:
+                print(f"Arm controller test error: {e}")
+        
+        print("ESP32 communication test completed")
+
+    def main_loop(self):
+        """Main operation loop for the robot"""
+        print("Starting robot main loop...")
+        
+        # Start status update thread
+        status_thread = threading.Thread(target=self.status_update_thread, daemon=True)
+        status_thread.start()
+        
+        try:
+            while True:
+                # Check for web commands
+                self.check_web_commands()
+                
+                # Check controller status periodically
+                if time.time() % 30 < 0.1:  # Every 30 seconds
+                    status = self.check_controller_status()
+                    if self.debug_mode:
+                        print(f"Controller status: {status}")
+                
+                # Sleep to avoid high CPU usage
+                time.sleep(0.1)
+                
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received, shutting down...")
+        except Exception as e:
+            print(f"Error in main loop: {e}")
+            self.log_event("ERROR", f"Main loop error: {e}", False)
+    
+    def shutdown(self):
+        """Clean shutdown of the robot controller"""
+        print("Shutting down robot controller...")
+        
+        # Stop any ongoing movement
+        if self.nav_uart:
+            try:
+                self.send_nav_command("STOP")
+                print("Navigation stopped")
+            except:
+                pass
+        
+        # Disable the arm
+        if self.arm_uart:
+            try:
+                self.send_arm_command("DISABLE")
+                print("Arm disabled")
+            except:
+                pass
+        
+        # Close serial connections
+        if self.nav_uart:
+            try:
+                self.nav_uart.close()
+                print("Navigation controller connection closed")
+            except:
+                pass
+            
+        if self.arm_uart:
+            try:
+                self.arm_uart.close()
+                print("Arm controller connection closed")
+            except:
+                pass
+        
+        # Close camera if open
+        if self.camera:
+            try:
+                self.camera.release()
+                print("Camera released")
+            except:
+                pass
+        
+        # Close database connection
+        try:
+            self.db.close()
+            print("Database connection closed")
+        except:
+            pass
+            
+        print("Shutdown complete")
+    
+    def execute_web_command(self, command):
+        """Execute commands received from the web interface"""
+        if not command:
+            return False
+            
+        cmd = command.get('command', '').lower()
+        params = command.get('params', {})
+        
+        print(f"Executing web command: {cmd} with params: {params}")
+        
+        try:
+            if cmd == 'move':
+                direction = params.get('direction', 'forward')
+                if direction == 'forward':
+                    response = self.send_nav_command("MOVE", "FORWARD")
+                elif direction == 'backward':
+                    response = self.send_nav_command("MOVE", "BACKWARD")
+                else:
+                    response = "ERROR:INVALID_DIRECTION"
+                    
+            elif cmd == 'turn':
+                direction = params.get('direction', 'left')
+                if direction == 'left':
+                    response = self.send_nav_command("TURN", "LEFT")
+                elif direction == 'right':
+                    response = self.send_nav_command("TURN", "RIGHT")
+                else:
+                    response = "ERROR:INVALID_DIRECTION"
+                    
+            elif cmd == 'stop':
+                response = self.send_nav_command("STOP")
+                
+            elif cmd == 'emergency_stop':
+                # Stop navigation
+                nav_response = self.send_nav_command("STOP")
+                # Disable arm
+                arm_response = self.send_arm_command("DISABLE")
+                response = f"NAV:{nav_response}, ARM:{arm_response}"
+                
+            elif cmd == 'clear_emergency':
+                # Enable arm
+                response = self.send_arm_command("ENABLE")
+                
+            elif cmd == 'home':
+                # This would involve path planning and navigation
+                response = "HOME command not fully implemented"
+                
+            elif cmd == 'arm_move':
+                # Direct arm command
+                arm_cmd = params.get('arm_cmd', '')
+                if arm_cmd:
+                    response = self.send_arm_command(arm_cmd)
+                else:
+                    response = "ERROR:MISSING_ARM_COMMAND"
+                    
+            else:
+                response = f"ERROR:UNKNOWN_COMMAND:{cmd}"
+                
+            print(f"Command response: {response}")
+            return True
+            
+        except Exception as e:
+            print(f"Error executing web command: {e}")
+            self.log_event("ERROR", f"Web command error: {cmd} - {e}", False)
+            return False
+    
+    def get_status_report(self):
+        """Generate a status report for the web interface"""
+        # Check controller responsiveness
+        controller_status = self.check_controller_status()
+        
+        # Get task counts from database
+        try:
+            conn = self.db
+            cursor = conn.cursor()
+            pending = cursor.execute('SELECT COUNT(*) FROM boxes WHERE status != "delivered"').fetchone()[0]
+            completed = cursor.execute('SELECT COUNT(*) FROM boxes WHERE status = "delivered"').fetchone()[0]
+        except Exception as e:
+            if self.debug_mode:
+                print(f"Error getting task counts: {e}")
+            pending = 0
+            completed = 0
+        
+        # Compile status report
+        status = {
+            "current_position": self.current_position,
+            "current_orientation": self.current_orientation,
+            "robot_busy": self.robot_busy,
+            "pending_tasks": pending,
+            "completed_tasks": completed,
+            "nav_controller_connected": self.nav_uart is not None,
+            "arm_controller_connected": self.arm_uart is not None,
+            "nav_controller_responsive": controller_status.get("nav_controller_responsive", False),
+            "arm_controller_responsive": controller_status.get("arm_controller_responsive", False),
+            "nav_only_mode": self.nav_only_mode,
+            "arm_only_mode": self.arm_only_mode,
+            "carrying_boxes": len(self.carrying_boxes),
+            "max_box_capacity": self.max_box_capacity
+        }
+        
+        return status
+
+    def test_arm_motors(self):
+        """Test each arm motor with a short movement sequence"""
+        if not self.arm_uart:
+            print("Arm controller not connected")
+            return False
+            
+        print("Testing arm motors...")
+        
+        try:
+            # First enable the arm
+            print("Enabling arm...")
+            response = self.send_arm_command("ENABLE")
+            if "ERROR" in response:
+                print(f"Failed to enable arm: {response}")
+                return False
+                
+            time.sleep(1)
+            
+            # Test base motor
+            print("Testing base motor...")
+            self.send_arm_command("MOVE_MOTOR", "base", "+")
+            time.sleep(0.5)
+            self.send_arm_command("MOVE_MOTOR", "base", "-")
+            time.sleep(0.5)
+            
+            # Test shoulder motor
+            print("Testing shoulder motor...")
+            self.send_arm_command("MOVE_MOTOR", "shoulder", "+")
+            time.sleep(0.5)
+            self.send_arm_command("MOVE_MOTOR", "shoulder", "-")
+            time.sleep(0.5)
+            
+            # Test elbow motor
+            print("Testing elbow motor...")
+            self.send_arm_command("MOVE_MOTOR", "elbow", "+")
+            time.sleep(0.5)
+            self.send_arm_command("MOVE_MOTOR", "elbow", "-")
+            time.sleep(0.5)
+            
+            # Test gripper
+            print("Testing gripper...")
+            self.send_arm_command("GRIP", "OPEN")
+            time.sleep(1)
+            self.send_arm_command("GRIP", "CLOSE")
+            time.sleep(1)
+            self.send_arm_command("GRIP", "OPEN")
+            time.sleep(1)
+            
+            # Disable arm when done
+            print("Disabling arm...")
+            self.send_arm_command("DISABLE")
+            
+            print("Arm motor test completed successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error testing arm motors: {e}")
+            # Try to disable arm in case of error
+            try:
+                self.send_arm_command("DISABLE")
+            except:
+                pass
+            return False
+
 if __name__ == "__main__":
     robot = None
     
