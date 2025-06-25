@@ -33,95 +33,104 @@ COMMANDS = {
     'Shoulder -': 'd',
     'Elbow +': 'q',
     'Elbow -': 'e',
-    'Gripper Open': 'i',   # Open gripper fully (40mm)
-    'Gripper Close': 'o',  # Close gripper to box width (35mm)
-    'Gripper Precise': 'p' # Fine-tune gripper for perfect box fit
+    'Gripper Open': 'i',
+    'Gripper Close': 'o'
 }
 
 # Predefined sequences for common tasks
 SEQUENCES = {
-    'small_box': [
-        ('Enable Arm', 1.0),        # Enable the arm first
-        ('Base +', 0.8),            # Position base precisely for small box
-        ('Shoulder +', 0.6),        # Lower arm carefully to box height
-        ('Elbow -', 0.7),           # Extend arm precisely
-        ('Gripper Open', 1.0),      # Open gripper fully (40mm)
-        ('Elbow +', 0.15),          # Move slightly down to align with box
-        ('Base +', 0.1),            # Fine adjust position
-        ('Gripper Close', 0.8),     # Close gripper to 35mm (precise for 3.5cm box)
-        ('Gripper Precise', 0.5),   # Fine-tune gripper for perfect fit
-        ('Shoulder -', 0.6),        # Lift box carefully
-        ('Base -', 1.2),            # Turn to robot back
-        ('Elbow +', 0.5),           # Position over storage area
-        ('Gripper Open', 1.0),      # Release box fully
-        ('Shoulder +', 0.3),        # Move away from box
-        ('Base +', 0.7),            # Return to starting position
-        ('Disable Arm', 0.5),       # Disable arm when done
-    ],
-    
     'pick_up_box': [
-        ('Enable Arm', 1.0),        # Enable the arm first
-        ('Base +', 0.8),            # Position base precisely for small box
-        ('Shoulder +', 0.6),        # Lower arm carefully to box height
-        ('Elbow -', 0.7),           # Extend arm precisely
-        ('Gripper Open', 1.0),      # Open gripper fully (40mm)
-        ('Elbow +', 0.15),          # Move slightly down to align with box
-        ('Base +', 0.1),            # Fine adjust position
-        ('Gripper Close', 0.8),     # Close gripper to 35mm (precise for 3.5cm box)
-        ('Gripper Precise', 0.5),   # Fine-tune gripper for perfect fit
-        ('Shoulder -', 0.6),        # Lift box carefully
-        ('Base -', 1.2),            # Turn to robot back
-        ('Elbow +', 0.5),           # Position over storage area
-        ('Gripper Open', 1.0),      # Release box fully
-        ('Shoulder +', 0.3),        # Move away from box
-        ('Base +', 0.7),            # Return to starting position
-        ('Disable Arm', 0.5),       # Disable arm when done
+        ('Enable Arm', 1.0),     # Enable the arm first
+        ('Base +', 0.5),         # First base movement 
+        ('Base +', 0.5),         # Second base movement
+        ('Base +', 0.5),         # Third base movement - position base properly
+        ('Shoulder +', 0.5),     # Lower arm toward box
+        ('Shoulder +', 0.5),     # Lower arm more
+        ('Elbow -', 0.5),        # Extend arm
+        ('Elbow -', 0.5),        # Extend arm further
+        ('Gripper Open', 1.0),   # Open gripper - single command
+        ('Elbow +', 0.5),        # Move down to box
+        ('Gripper Close', 1.0),  # Grip box - single command
+        ('Shoulder -', 0.5),     # Start lifting box
+        ('Shoulder -', 0.5),     # Continue lifting box
+        ('Base -', 0.5),         # First turn toward back
+        ('Base -', 0.5),         # Second turn
+        ('Base -', 0.5),         # Complete turn to robot back
+        ('Elbow +', 0.5),        # Position over storage area
+        ('Elbow +', 0.5),        # Position more precisely
+        ('Gripper Open', 1.0),   # Release box - single command
+        ('Shoulder +', 0.5),     # Move away from box
+        ('Base +', 0.5),         # Start returning to position
+        ('Base +', 0.5),         # Continue returning
+        ('Base +', 0.5),         # Complete return to starting position
+        ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
+    # Sequence for light boxes (under 1kg)
     'light_box': [
-        ('Enable Arm', 1.0),      # Enable the arm first
-        ('Base +', 0.8),          # Position base precisely for small box
-        ('Shoulder +', 0.6),      # Lower arm carefully to box height
-        ('Elbow -', 0.7),         # Extend arm precisely
-        ('Gripper Open', 1.0),    # Open gripper fully (40mm opening)
-        ('Elbow +', 0.15),        # Move slightly down to align with box
-        ('Base +', 0.1),          # Fine adjust position
-        ('Gripper Close', 0.8),   # Close gripper to 35mm (precise for 3.5cm box)
-        ('Shoulder -', 0.6),      # Lift box carefully
-        ('Base -', 1.2),          # Turn to robot back
-        ('Elbow +', 0.5),         # Position over storage area
-        ('Gripper Open', 1.0),    # Release box fully
-        ('Shoulder +', 0.3),      # Move away from box
-        ('Base +', 0.7),          # Return to starting position
-        ('Disable Arm', 0.5),     # Disable arm when done
+        ('Enable Arm', 1.0),     # Enable the arm first
+        ('Base +', 0.5),         # First base movement
+        ('Base +', 0.5),         # Second base movement
+        ('Shoulder +', 0.5),     # Lower arm toward box
+        ('Elbow -', 0.5),        # Extend arm
+        ('Elbow -', 0.5),        # Extend further
+        ('Gripper Open', 1.0),   # Open gripper - single command
+        ('Elbow +', 0.5),        # Move down to box
+        ('Gripper Close', 1.0),  # Grip box - single command
+        ('Shoulder -', 0.5),     # Start lifting light box
+        ('Shoulder -', 0.5),     # Complete lifting
+        ('Base -', 0.5),         # First turn
+        ('Base -', 0.5),         # Complete turn
+        ('Elbow +', 0.5),        # Position over storage area
+        ('Gripper Open', 1.0),   # Release box - single command
+        ('Shoulder +', 0.5),     # Move away from box
+        ('Base +', 0.5),         # Start returning
+        ('Base +', 0.5),         # Complete return to starting position
+        ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
+    # Sequence for heavy boxes (over 2kg)
     'heavy_box': [
-        ('Enable Arm', 1.0),      # Enable the arm first
-        ('Base +', 0.8),          # Position base precisely for small box
-        ('Shoulder +', 0.6),      # Lower arm carefully to box height
-        ('Elbow -', 0.7),         # Extend arm precisely
-        ('Gripper Open', 1.0),    # Open gripper fully (40mm opening)
-        ('Elbow +', 0.15),        # Move slightly down to align with box
-        ('Base +', 0.1),          # Fine adjust position
-        ('Gripper Close', 0.8),   # Close gripper to 35mm (precise for 3.5cm box)
-        ('Shoulder -', 0.6),      # Lift box carefully
-        ('Base -', 1.2),          # Turn to robot back
-        ('Elbow +', 0.5),         # Position over storage area
-        ('Gripper Open', 1.0),    # Release box fully
-        ('Shoulder +', 0.3),      # Move away from box
-        ('Base +', 0.7),          # Return to starting position
-        ('Disable Arm', 0.5),     # Disable arm when done
+        ('Enable Arm', 1.0),     # Enable the arm first
+        ('Base +', 0.7),         # First careful positioning
+        ('Base +', 0.7),         # Second careful positioning
+        ('Base +', 0.7),         # Third careful positioning
+        ('Shoulder +', 0.7),     # First shoulder movement for stability
+        ('Shoulder +', 0.7),     # More shoulder movement for stability
+        ('Elbow -', 0.7),        # First slow extension
+        ('Elbow -', 0.7),        # Second slow extension
+        ('Elbow -', 0.7),        # Third slow extension for heavy box
+        ('Gripper Open', 1.0),   # Open gripper - single command
+        ('Elbow +', 0.7),        # Precise positioning
+        ('Gripper Close', 1.5),  # Stronger grip for heavy boxes - single command but longer delay
+        ('Shoulder -', 0.7),     # Start slow lift for heavy boxes
+        ('Shoulder -', 0.7),     # Continue slow lift
+        ('Base -', 0.7),         # First slow rotation with weight
+        ('Base -', 0.7),         # Second slow rotation
+        ('Base -', 0.7),         # Final slow rotation with weight
+        ('Elbow +', 0.7),        # First positioning adjustment
+        ('Elbow +', 0.7),        # Final positioning adjustment
+        ('Gripper Open', 1.0),   # Release box - single command
+        ('Shoulder +', 0.7),     # First movement for more clearance
+        ('Shoulder +', 0.7),     # Additional clearance after release
+        ('Base +', 0.7),         # First return movement
+        ('Base +', 0.7),         # Second return movement
+        ('Base +', 0.7),         # Final return movement
+        ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
     # Return to home position
     'home_position': [
-        ('Enable Arm', 1.0),
-        ('Base +', 0.5),      # Center the base
-        ('Shoulder -', 0.5),  # Raise arm
-        ('Elbow +', 0.5),     # Fold arm
-        ('Gripper Open', 0.3), # Open gripper
-        ('Disable Arm', 0.5),
+        ('Enable Arm', 1.0),     # Enable the arm first
+        ('Base +', 0.5),         # First base centering movement
+        ('Base +', 0.5),         # Second base centering movement
+        ('Base +', 0.5),         # Complete base centering
+        ('Shoulder -', 0.5),     # First movement to raise arm
+        ('Shoulder -', 0.5),     # Complete raising arm
+        ('Elbow +', 0.5),        # First movement to fold arm
+        ('Elbow +', 0.5),        # Complete folding arm
+        ('Gripper Open', 1.0),   # Open gripper - single command
+        ('Disable Arm', 0.5),    # Disable arm when done
     ],
 }
 
@@ -144,6 +153,7 @@ camera = None
 camera_thread = None
 camera_running = False
 last_qr_data = None
+last_qr_bbox = None  # To store bounding box coordinates
 
 # Robot state tracking
 robot_state = {
@@ -159,58 +169,32 @@ def get_camera():
     """Initialize camera if not already done"""
     global camera
     if camera is None:
-        setup_camera()
+        # Try different camera indices - expanded range to include higher indices
+        for camera_index in [0, 1, 2]:
+            try:
+                print(f"Trying camera at index {camera_index}...")
+                cam = cv2.VideoCapture(camera_index)
+                if cam.isOpened():
+                    ret, test_frame = cam.read()
+                    if ret and test_frame is not None:
+                        camera = cam
+                        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        print(f"Connected to camera at index {camera_index}")
+                        print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                        return camera
+                    else:
+                        print(f"Camera at index {camera_index} opened but couldn't read frame")
+                        cam.release()
+                else:
+                    print(f"Failed to open camera at index {camera_index}")
+            except Exception as e:
+                print(f"Error with camera at index {camera_index}: {e}")
+        
+        # If we get here, we failed to find a working camera
+        print("Error: Could not find a working camera")
+        camera = None
     return camera
-
-def setup_camera():
-    """Setup camera with fallback options for USB cameras"""
-    global camera
-    
-    # Try different camera indices - expanded range to include higher indices
-    # First check standard indices 0-2
-    for camera_index in [0, 1, 2]:
-        try:
-            print(f"Trying camera at index {camera_index}...")
-            camera = cv2.VideoCapture(camera_index)
-            if camera.isOpened():
-                ret, test_frame = camera.read()
-                if ret and test_frame is not None:
-                    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    print(f"Connected to camera at index {camera_index}")
-                    print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
-                    return camera
-                else:
-                    print(f"Camera at index {camera_index} opened but couldn't read frame")
-                    camera.release()
-            else:
-                print(f"Failed to open camera at index {camera_index}")
-        except Exception as e:
-            print(f"Error with camera at index {camera_index}: {e}")
-    
-    # Try device paths as fallback
-    for device_path in ['/dev/video0', '/dev/video1', '/dev/video2']:
-        try:
-            print(f"Trying camera at path {device_path}...")
-            camera = cv2.VideoCapture(device_path)
-            if camera.isOpened():
-                ret, test_frame = camera.read()
-                if ret and test_frame is not None:
-                    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    print(f"Connected to camera at path {device_path}")
-                    print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
-                    return camera
-                else:
-                    print(f"Camera at path {device_path} opened but couldn't read frame")
-                    camera.release()
-            else:
-                print(f"Failed to open camera at path {device_path}")
-        except Exception as e:
-            print(f"Error with camera at path {device_path}: {e}")
-    
-    print("Error: Could not open any camera")
-    return None
 
 def release_camera():
     """Release camera resources"""
@@ -222,7 +206,7 @@ def release_camera():
 
 def scan_qr_codes():
     """Thread function to continuously scan for QR codes"""
-    global camera_running, last_qr_data
+    global camera_running, last_qr_data, last_qr_bbox
     camera = get_camera()
     if not camera:
         return
@@ -238,20 +222,68 @@ def scan_qr_codes():
         # Try to detect QR code
         try:
             data, bbox, _ = qr_detector.detectAndDecode(frame)
-            if data and data != last_qr_data:
-                print(f"QR Code detected: {data}")
-                last_qr_data = data
-                # Process the QR code data in the main thread
-                process_qr_code(data)
+            if data:
+                # Only process if it's a new QR code or we haven't processed this one yet
+                if data != last_qr_data:
+                    print(f"QR Code detected: {data}")
+                    last_qr_data = data
+                    # Process the QR code data in the main thread
+                    process_qr_code(data)
+                
+                # Store bounding box for visualization even if it's the same code
+                if bbox is not None and len(bbox) > 0:
+                    # Convert bbox to a more usable format for the web interface
+                    # OpenCV returns bbox as a 3D array with 4 points (corners)
+                    points = bbox[0]
+                    if len(points) == 4:
+                        # Calculate the bounding rectangle that contains all points
+                        x_coords = [p[0] for p in points]
+                        y_coords = [p[1] for p in points]
+                        x = min(x_coords)
+                        y = min(y_coords)
+                        width = max(x_coords) - x
+                        height = max(y_coords) - y
+                        
+                        last_qr_bbox = {
+                            "x": int(x),
+                            "y": int(y),
+                            "width": int(width),
+                            "height": int(height)
+                        }
+                        
+                        # Draw bounding box on the frame for debugging
+                        cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
+                        cv2.putText(frame, data, (int(x), int(y) - 10), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            else:
+                # Clear bounding box if no QR code is detected
+                last_qr_bbox = None
+                
         except Exception as e:
             print(f"QR detection error: {e}")
+            last_qr_bbox = None
             
         time.sleep(0.1)  # Small delay to reduce CPU usage
 
 def select_sequence_for_box(box_info):
     """Select appropriate sequence based on box properties"""
-    # For the specific 3.5x4x9 cm box, always use the small_box sequence
-    return 'small_box'
+    # Extract box properties
+    # Assuming box_info structure: (id, status, source, dest_shelf, dest_section, pickup_time, delivery_time, weight, attempts, created_time)
+    box_id = box_info[0]
+    weight = box_info[7] if box_info[7] is not None else 1.0
+    destination = box_info[3] if box_info[3] is not None else "SHELF_A"
+    
+    print(f"Processing box {box_id} with weight {weight}kg to {destination}")
+    
+    # Select sequence based on weight
+    if weight < 1.0:
+        sequence = 'light_box'
+    elif weight > 2.0:
+        sequence = 'heavy_box'
+    else:
+        sequence = 'pick_up_box'
+    
+    return sequence
 
 def update_robot_state(status=None, box_id=None, position=None, action=None, error=None):
     """Update the robot's current state"""
@@ -463,12 +495,15 @@ AUTO_HTML = """
     <style>
         body { font-family: Arial; text-align: center; }
         .container { display: flex; flex-direction: column; align-items: center; }
-        .video-container { width: 640px; height: 480px; margin: 20px; border: 1px solid #ccc; }
+        .video-container { width: 640px; height: 480px; margin: 20px; border: 1px solid #ccc; position: relative; }
+        .video-overlay { position: absolute; top: 0; left: 0; width: 640px; height: 480px; z-index: 10; pointer-events: none; }
         button { width: 200px; height: 50px; margin: 10px; font-size: 18px; }
         .back-button { background-color: #f0f0f0; }
         .control-panel { margin: 20px; }
         .qr-data { margin: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }
         .camera-config { margin: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }
+        .detection-box { position: absolute; border: 3px solid #00ff00; display: none; }
+        .detection-text { position: absolute; background-color: rgba(0, 255, 0, 0.7); color: white; padding: 5px; font-size: 14px; display: none; }
     </style>
     <script>
         function startCamera() {
@@ -489,17 +524,6 @@ AUTO_HTML = """
                     document.getElementById('status').innerText = data.status;
                     document.getElementById('camera_img').src = "";
                 });
-        }
-        
-        function checkQrStatus() {
-            fetch('/qr_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.qr_data) {
-                        document.getElementById('qr_data').innerText = data.qr_data;
-                    }
-                });
-            setTimeout(checkQrStatus, 1000);
         }
         
         function setCamera() {
@@ -523,6 +547,33 @@ AUTO_HTML = """
             });
         }
         
+        function checkQrStatus() {
+            fetch('/qr_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.qr_data) {
+                        document.getElementById('qr_data').innerText = data.qr_data;
+                        
+                        // Show detection box if coordinates are available
+                        if (data.qr_bbox) {
+                            const box = document.getElementById('detection-box');
+                            box.style.left = data.qr_bbox.x + 'px';
+                            box.style.top = data.qr_bbox.y + 'px';
+                            box.style.width = data.qr_bbox.width + 'px';
+                            box.style.height = data.qr_bbox.height + 'px';
+                            box.style.display = 'block';
+                            
+                            const text = document.getElementById('detection-text');
+                            text.style.left = data.qr_bbox.x + 'px';
+                            text.style.top = (data.qr_bbox.y + data.qr_bbox.height + 5) + 'px';
+                            text.innerText = data.qr_data;
+                            text.style.display = 'block';
+                        }
+                    }
+                });
+            setTimeout(checkQrStatus, 1000);
+        }
+        
         window.onload = function() {
             checkQrStatus();
         };
@@ -535,6 +586,10 @@ AUTO_HTML = """
     <div class="container">
         <div class="video-container">
             <img id="camera_img" src="" width="640" height="480">
+            <div class="video-overlay">
+                <div id="detection-box" class="detection-box"></div>
+                <div id="detection-text" class="detection-text"></div>
+            </div>
         </div>
         
         <div class="control-panel">
@@ -563,11 +618,53 @@ def generate_camera_frames():
     if not camera:
         return
         
+    qr_detector = cv2.QRCodeDetector()
+    
     while True:
         success, frame = camera.read()
         if not success:
             break
         else:
+            # Try to detect QR codes in the frame for visualization
+            try:
+                data, bbox, _ = qr_detector.detectAndDecode(frame)
+                if data and bbox is not None and len(bbox) > 0:
+                    # Draw bounding box and text on the frame
+                    points = bbox[0]
+                    if len(points) == 4:
+                        # Draw green polygon around QR code
+                        cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
+                        
+                        # Add text label
+                        x_coords = [p[0] for p in points]
+                        y_coords = [p[1] for p in points]
+                        x = min(x_coords)
+                        y = min(y_coords)
+                        
+                        # Draw background for text
+                        text_size = cv2.getTextSize(data, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                        cv2.rectangle(frame, 
+                                     (int(x), int(y) - text_size[1] - 10),
+                                     (int(x) + text_size[0], int(y)),
+                                     (0, 255, 0), -1)
+                        
+                        # Draw text
+                        cv2.putText(frame, data, (int(x), int(y) - 5), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+            except Exception as e:
+                # Just continue if QR detection fails
+                pass
+                
+            # Add robot state information to the frame
+            try:
+                # Add status text at the bottom of the frame
+                status_text = f"Status: {robot_state['status']} | Box: {robot_state['carrying_box'] or 'None'}"
+                cv2.rectangle(frame, (0, frame.shape[0] - 30), (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
+                cv2.putText(frame, status_text, (10, frame.shape[0] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            except:
+                pass
+                
             # Convert to jpg for streaming
             ret, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
@@ -632,7 +729,10 @@ def video_feed():
 @app.route('/qr_status')
 def qr_status():
     """Return the last detected QR code data"""
-    return jsonify({"qr_data": last_qr_data})
+    return jsonify({
+        "qr_data": last_qr_data,
+        "qr_bbox": last_qr_bbox
+    })
 
 @app.route('/set_camera', methods=['POST'])
 def set_camera():
