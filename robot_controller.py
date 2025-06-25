@@ -33,63 +33,85 @@ COMMANDS = {
     'Shoulder -': 'd',
     'Elbow +': 'q',
     'Elbow -': 'e',
-    'Gripper Open': 'i',
-    'Gripper Close': 'o'
+    'Gripper Open': 'i',   # Open gripper fully (40mm)
+    'Gripper Close': 'o',  # Close gripper to box width (35mm)
+    'Gripper Precise': 'p' # Fine-tune gripper for perfect box fit
 }
 
 # Predefined sequences for common tasks
 SEQUENCES = {
+    'small_box': [
+        ('Enable Arm', 1.0),        # Enable the arm first
+        ('Base +', 0.8),            # Position base precisely for small box
+        ('Shoulder +', 0.6),        # Lower arm carefully to box height
+        ('Elbow -', 0.7),           # Extend arm precisely
+        ('Gripper Open', 1.0),      # Open gripper fully (40mm)
+        ('Elbow +', 0.15),          # Move slightly down to align with box
+        ('Base +', 0.1),            # Fine adjust position
+        ('Gripper Close', 0.8),     # Close gripper to 35mm (precise for 3.5cm box)
+        ('Gripper Precise', 0.5),   # Fine-tune gripper for perfect fit
+        ('Shoulder -', 0.6),        # Lift box carefully
+        ('Base -', 1.2),            # Turn to robot back
+        ('Elbow +', 0.5),           # Position over storage area
+        ('Gripper Open', 1.0),      # Release box fully
+        ('Shoulder +', 0.3),        # Move away from box
+        ('Base +', 0.7),            # Return to starting position
+        ('Disable Arm', 0.5),       # Disable arm when done
+    ],
+    
     'pick_up_box': [
-        ('Enable Arm', 1.0),  # Enable the arm first
-        ('Base +', 0.5),      # Position base
-        ('Shoulder +', 0.5),  # Lower arm
-        ('Elbow -', 0.5),     # Extend arm
-        ('Gripper Open', 0.5),# Open gripper
-        ('Elbow +', 0.2),     # Move slightly down to box
-        ('Gripper Close', 1), # Grip box
-        ('Shoulder -', 0.5),  # Lift box
-        ('Base -', 1),        # Turn to robot back
-        ('Elbow +', 0.5),     # Position over storage area
-        ('Gripper Open', 0.5),# Release box
-        ('Shoulder +', 0.3),  # Move away from box
-        ('Base +', 0.5),      # Return to starting position
-        ('Disable Arm', 0.5), # Disable arm when done
+        ('Enable Arm', 1.0),        # Enable the arm first
+        ('Base +', 0.8),            # Position base precisely for small box
+        ('Shoulder +', 0.6),        # Lower arm carefully to box height
+        ('Elbow -', 0.7),           # Extend arm precisely
+        ('Gripper Open', 1.0),      # Open gripper fully (40mm)
+        ('Elbow +', 0.15),          # Move slightly down to align with box
+        ('Base +', 0.1),            # Fine adjust position
+        ('Gripper Close', 0.8),     # Close gripper to 35mm (precise for 3.5cm box)
+        ('Gripper Precise', 0.5),   # Fine-tune gripper for perfect fit
+        ('Shoulder -', 0.6),        # Lift box carefully
+        ('Base -', 1.2),            # Turn to robot back
+        ('Elbow +', 0.5),           # Position over storage area
+        ('Gripper Open', 1.0),      # Release box fully
+        ('Shoulder +', 0.3),        # Move away from box
+        ('Base +', 0.7),            # Return to starting position
+        ('Disable Arm', 0.5),       # Disable arm when done
     ],
     
-    # Sequence for light boxes (under 1kg)
     'light_box': [
-        ('Enable Arm', 1.0),
-        ('Base +', 0.5),
-        ('Shoulder +', 0.3),  # Less shoulder movement for light boxes
-        ('Elbow -', 0.5),
-        ('Gripper Open', 0.5),
-        ('Elbow +', 0.2),
-        ('Gripper Close', 0.8),
-        ('Shoulder -', 0.4),  # Faster lift for light boxes
-        ('Base -', 1),
-        ('Elbow +', 0.5),
-        ('Gripper Open', 0.5),
-        ('Shoulder +', 0.3),
-        ('Base +', 0.5),
-        ('Disable Arm', 0.5),
+        ('Enable Arm', 1.0),      # Enable the arm first
+        ('Base +', 0.8),          # Position base precisely for small box
+        ('Shoulder +', 0.6),      # Lower arm carefully to box height
+        ('Elbow -', 0.7),         # Extend arm precisely
+        ('Gripper Open', 1.0),    # Open gripper fully (40mm opening)
+        ('Elbow +', 0.15),        # Move slightly down to align with box
+        ('Base +', 0.1),          # Fine adjust position
+        ('Gripper Close', 0.8),   # Close gripper to 35mm (precise for 3.5cm box)
+        ('Shoulder -', 0.6),      # Lift box carefully
+        ('Base -', 1.2),          # Turn to robot back
+        ('Elbow +', 0.5),         # Position over storage area
+        ('Gripper Open', 1.0),    # Release box fully
+        ('Shoulder +', 0.3),      # Move away from box
+        ('Base +', 0.7),          # Return to starting position
+        ('Disable Arm', 0.5),     # Disable arm when done
     ],
     
-    # Sequence for heavy boxes (over 2kg)
     'heavy_box': [
-        ('Enable Arm', 1.0),
-        ('Base +', 0.7),      # More careful positioning
-        ('Shoulder +', 0.7),  # More shoulder movement for stability
-        ('Elbow -', 0.6),     # Slower extension
-        ('Gripper Open', 0.5),
-        ('Elbow +', 0.3),     # More precise positioning
-        ('Gripper Close', 1.2), # Stronger grip for heavy boxes
-        ('Shoulder -', 0.8),  # Slower lift for heavy boxes
-        ('Base -', 1.2),      # Slower rotation with weight
-        ('Elbow +', 0.7),
-        ('Gripper Open', 0.5),
-        ('Shoulder +', 0.5),  # More clearance after release
-        ('Base +', 0.7),
-        ('Disable Arm', 0.5),
+        ('Enable Arm', 1.0),      # Enable the arm first
+        ('Base +', 0.8),          # Position base precisely for small box
+        ('Shoulder +', 0.6),      # Lower arm carefully to box height
+        ('Elbow -', 0.7),         # Extend arm precisely
+        ('Gripper Open', 1.0),    # Open gripper fully (40mm opening)
+        ('Elbow +', 0.15),        # Move slightly down to align with box
+        ('Base +', 0.1),          # Fine adjust position
+        ('Gripper Close', 0.8),   # Close gripper to 35mm (precise for 3.5cm box)
+        ('Shoulder -', 0.6),      # Lift box carefully
+        ('Base -', 1.2),          # Turn to robot back
+        ('Elbow +', 0.5),         # Position over storage area
+        ('Gripper Open', 1.0),    # Release box fully
+        ('Shoulder +', 0.3),      # Move away from box
+        ('Base +', 0.7),          # Return to starting position
+        ('Disable Arm', 0.5),     # Disable arm when done
     ],
     
     # Return to home position
@@ -137,43 +159,58 @@ def get_camera():
     """Initialize camera if not already done"""
     global camera
     if camera is None:
-        # Try different camera indices and devices
-        camera_options = [
-            CAMERA_DEVICE,  # Use configured camera device first
-            0,              # Default camera
-            1,              # Second camera
-            2,              # Third camera
-            '/dev/video0',  # Explicit device path
-            '/dev/video1',
-            '/dev/video2'
-        ]
-        
-        for cam_option in camera_options:
-            try:
-                print(f"Trying to open camera: {cam_option}")
-                # Convert string to integer if it's a numeric index
-                if isinstance(cam_option, str) and cam_option.isdigit():
-                    cam_option = int(cam_option)
-                
-                camera = cv2.VideoCapture(cam_option)
-                if camera.isOpened():
-                    print(f"Successfully opened camera: {cam_option}")
-                    # Test reading a frame to confirm it works
-                    ret, frame = camera.read()
-                    if ret:
-                        print("Camera working properly")
-                        return camera
-                    else:
-                        print("Camera opened but couldn't read frame")
-                        camera.release()
-                else:
-                    print(f"Failed to open camera: {cam_option}")
-            except Exception as e:
-                print(f"Error trying to open camera {cam_option}: {str(e)}")
-                
-        print("Error: Could not open any camera")
-        camera = None
+        setup_camera()
     return camera
+
+def setup_camera():
+    """Setup camera with fallback options for USB cameras"""
+    global camera
+    
+    # Try different camera indices - expanded range to include higher indices
+    # First check standard indices 0-2
+    for camera_index in [0, 1, 2]:
+        try:
+            print(f"Trying camera at index {camera_index}...")
+            camera = cv2.VideoCapture(camera_index)
+            if camera.isOpened():
+                ret, test_frame = camera.read()
+                if ret and test_frame is not None:
+                    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    print(f"Connected to camera at index {camera_index}")
+                    print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                    return camera
+                else:
+                    print(f"Camera at index {camera_index} opened but couldn't read frame")
+                    camera.release()
+            else:
+                print(f"Failed to open camera at index {camera_index}")
+        except Exception as e:
+            print(f"Error with camera at index {camera_index}: {e}")
+    
+    # Try device paths as fallback
+    for device_path in ['/dev/video0', '/dev/video1', '/dev/video2']:
+        try:
+            print(f"Trying camera at path {device_path}...")
+            camera = cv2.VideoCapture(device_path)
+            if camera.isOpened():
+                ret, test_frame = camera.read()
+                if ret and test_frame is not None:
+                    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    print(f"Connected to camera at path {device_path}")
+                    print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
+                    return camera
+                else:
+                    print(f"Camera at path {device_path} opened but couldn't read frame")
+                    camera.release()
+            else:
+                print(f"Failed to open camera at path {device_path}")
+        except Exception as e:
+            print(f"Error with camera at path {device_path}: {e}")
+    
+    print("Error: Could not open any camera")
+    return None
 
 def release_camera():
     """Release camera resources"""
@@ -213,23 +250,8 @@ def scan_qr_codes():
 
 def select_sequence_for_box(box_info):
     """Select appropriate sequence based on box properties"""
-    # Extract box properties
-    # Assuming box_info structure: (id, status, source, dest_shelf, dest_section, pickup_time, delivery_time, weight, attempts, created_time)
-    box_id = box_info[0]
-    weight = box_info[7] if box_info[7] is not None else 1.0
-    destination = box_info[3] if box_info[3] is not None else "SHELF_A"
-    
-    print(f"Processing box {box_id} with weight {weight}kg to {destination}")
-    
-    # Select sequence based on weight
-    if weight < 1.0:
-        sequence = 'light_box'
-    elif weight > 2.0:
-        sequence = 'heavy_box'
-    else:
-        sequence = 'pick_up_box'
-    
-    return sequence
+    # For the specific 3.5x4x9 cm box, always use the small_box sequence
+    return 'small_box'
 
 def update_robot_state(status=None, box_id=None, position=None, action=None, error=None):
     """Update the robot's current state"""
