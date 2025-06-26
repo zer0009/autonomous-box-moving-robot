@@ -107,35 +107,29 @@ SEQUENCES = {
         ('Base -', 0.5),         # Complete turn to back
     ],
 
-    'store_back_position_1': [  # 30 Elbow - iterations for position 1
-        # Move elbow to position 1
-        ('Elbow -', 0.5),
-    ] * 38 + [
+    'store_back_position_1': [  # Position 1 sequence
+        # Move elbow to position 1 - exactly 38 steps down
+    ] + [('Elbow -', 0.5) for _ in range(38)] + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 26 steps (reduced from 30)
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 30,
+        # Return elbow exactly 30 steps up
+    ] + [('Elbow +', 0.5) for _ in range(30)],
 
-    'store_back_position_2': [  # 40 Elbow - iterations for position 2
-        # Move elbow to position 2
-        ('Elbow -', 0.5),
-    ] * 48 + [
+    'store_back_position_2': [  # Position 2 sequence
+        # Move elbow to position 2 - exactly 48 steps down
+    ] + [('Elbow -', 0.5) for _ in range(48)] + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 36 steps (reduced from 40)
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 40,
+        # Return elbow exactly 40 steps up
+    ] + [('Elbow +', 0.5) for _ in range(40)],
 
-    'store_back_position_3': [  # 50 Elbow - iterations for position 3
-        # Move elbow to position 3
-        ('Elbow -', 0.5),
-    ] * 55 + [
+    'store_back_position_3': [  # Position 3 sequence
+        # Move elbow to position 3 - exactly 55 steps down
+    ] + [('Elbow -', 0.5) for _ in range(55)] + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 50 steps (reduced from 55)
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 50,
+        # Return elbow exactly 50 steps up
+    ] + [('Elbow +', 0.5) for _ in range(50)],
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
@@ -426,40 +420,50 @@ def serial_reader():
         try:
             # Read from arm ESP32
             if arm_ser.in_waiting:
-                line = arm_ser.readline().decode(errors='ignore').strip()
-                if line.startswith("Sensor States:"):
-                    # Parse IR sensor states
-                    try:
-                        # Extract IR values
-                        ir_values = []
-                        parts = line.split()
-                        for part in parts:
-                            if part.startswith("IR") and ":" in part:
-                                value = int(part.split(":")[1])
-                                ir_values.append(value)
-                        
-                        if len(ir_values) == 5:  # Ensure we have all 5 IR sensor values
-                            # Convert IR values to binary number
-                            # Example: [1,1,1,1,1] becomes 31 (11111 in binary)
-                            binary_value = 0
-                            for i in range(5):
-                                if ir_values[i]:  # If sensor reads 1
-                                    binary_value |= (1 << (4-i))  # Set corresponding bit
+                try:
+                    line = arm_ser.readline().decode(errors='ignore').strip()
+                    if line.startswith("Sensor States:"):
+                        try:
+                            # Extract IR values
+                            ir_values = []
+                            parts = line.split()
+                            for part in parts:
+                                if part.startswith("IR") and ":" in part:
+                                    value = int(part.split(":")[1])
+                                    ir_values.append(value)
                             
-                            # Send binary value to navigation ESP32 without colon
-                            ir_data = f"IR{binary_value}\n"
-                            nav_ser.write(ir_data.encode())
-                            print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
-                    except Exception as e:
-                        print(f"Error parsing IR data: {e}")
+                            if len(ir_values) == 5:  # Ensure we have all 5 IR sensor values
+                                # Check if middle sensor (index 2) is active
+                                if ir_values[2] == 1:
+                                    # Send IR4 command to navigation ESP32
+                                    nav_ser.write("IR4\n".encode())
+                                    print("Middle sensor active, sent IR4 to navigation")
+                                else:
+                                    # For other cases, send binary value as before
+                                    binary_value = 0
+                                    for i in range(5):
+                                        if ir_values[i]:  # If sensor reads 1
+                                            binary_value |= (1 << (4-i))  # Set corresponding bit
+                                    
+                                    # Send binary value to navigation ESP32
+                                    ir_data = f"IR{binary_value}\n"
+                                    nav_ser.write(ir_data.encode())
+                                    print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
+                        except Exception as e:
+                            print(f"Error parsing IR data: {e}")
+                except Exception as e:
+                    print(f"Error reading from arm serial: {e}")
                 
             # Read from navigation ESP32
             if nav_ser.in_waiting:
-                line = nav_ser.readline().decode(errors='ignore').strip()
-                if line.startswith("CORRECTION:"):
-                    latest_correction = line.split(":", 1)[1].strip()
-                    robot_state["ir_correction"] = latest_correction
-                    print(f"Received IR correction: {latest_correction}")  # Add debug print
+                try:
+                    line = nav_ser.readline().decode(errors='ignore').strip()
+                    if line.startswith("CORRECTION:"):
+                        latest_correction = line.split(":", 1)[1].strip()
+                        robot_state["ir_correction"] = latest_correction
+                        print(f"Received IR correction: {latest_correction}")  # Add debug print
+                except Exception as e:
+                    print(f"Error reading from navigation serial: {e}")
                     
         except Exception as e:
             print(f"Serial reader error: {e}")
