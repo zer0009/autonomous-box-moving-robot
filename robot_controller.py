@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 
 # Configuration
-SERIAL_PORT = '/dev/ttyACM0'  # or '/dev/ttyACM0' if that's your ESP32 port
+SERIAL_PORT = '/dev/ttyACM1'  # or '/dev/ttyACM0' if that's your ESP32 port
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
@@ -68,7 +68,6 @@ SEQUENCES = {
         ('Shoulder -', 0.5),     # Lower arm toward box
         ('Shoulder -', 0.5),     # Lower arm toward box
         ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
         ('Shoulder -', 0.5),     # Lower arm toward box       # Extend arm further     # Move down to box
         ('Gripper Close', 1.0),  # Grip box - single command
         ('Shoulder +', 0.5),     # Start lifting box
@@ -109,7 +108,7 @@ SEQUENCES = {
         ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5), 
-                ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5),        # Position more precisely
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5), 
@@ -124,6 +123,14 @@ SEQUENCES = {
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5), 
         ('Elbow -', 0.5), 
         ('Shoulder +', 0.5),  
         ('Shoulder +', 0.5),  
@@ -136,18 +143,56 @@ SEQUENCES = {
         ('Base +', 0.5),  
         ('Gripper Open', 1.0),   # Release box - single command
         
-        # Complete return sequence
+        # Return to home position (inverted sequence)
+        ('Shoulder -', 0.5),     # Lower shoulder back to neutral position
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        
+        # Return base to original position
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        
+        # Return elbow to original position
         ('Elbow +', 0.5),        # Retract arm
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
-        ('Base +', 0.5),         # Continue turning back to starting position
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder +', 0.5),     # Raise shoulder to home position
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        ('Elbow +', 0.5),        # Adjust elbow to home position
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Disable Arm', 0.5),    # Disable arm when done
     ],
