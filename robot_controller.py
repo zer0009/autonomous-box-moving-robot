@@ -428,20 +428,54 @@ robot_state = {
 }
 
 def serial_reader():
-    """Thread function to continuously read from navigation serial port"""
+    """Thread function to continuously read from serial ports"""
     global latest_correction
-    if not nav_serial_available:
+    if not nav_serial_available or not arm_serial_available:
         return
         
     while True:
         try:
-            line = nav_ser.readline().decode(errors='ignore').strip()
-            if line.startswith("CORRECTION:"):
-                latest_correction = line.split(":", 1)[1].strip()
-                robot_state["ir_correction"] = latest_correction
+            # Read from arm ESP32
+            if arm_ser.in_waiting:
+                line = arm_ser.readline().decode(errors='ignore').strip()
+                if line.startswith("Sensor States:"):
+                    # Parse IR sensor states
+                    try:
+                        # Extract IR values
+                        ir_values = []
+                        parts = line.split()
+                        for part in parts:
+                            if part.startswith("IR") and ":" in part:
+                                value = int(part.split(":")[1])
+                                ir_values.append(value)
+                        
+                        if len(ir_values) == 5:  # Ensure we have all 5 IR sensor values
+                            # Convert IR values to binary number
+                            # Example: [1,1,1,1,1] becomes 31 (11111 in binary)
+                            binary_value = 0
+                            for i in range(5):
+                                if ir_values[i]:  # If sensor reads 1
+                                    binary_value |= (1 << (4-i))  # Set corresponding bit
+                            
+                            # Send binary value to navigation ESP32
+                            ir_data = f"IR{binary_value}\n"
+                            nav_ser.write(ir_data.encode())
+                            print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
+                    except Exception as e:
+                        print(f"Error parsing IR data: {e}")
+                
+            # Read from navigation ESP32
+            if nav_ser.in_waiting:
+                line = nav_ser.readline().decode(errors='ignore').strip()
+                if line.startswith("CORRECTION:"):
+                    latest_correction = line.split(":", 1)[1].strip()
+                    robot_state["ir_correction"] = latest_correction
+                    
         except Exception as e:
             print(f"Serial reader error: {e}")
             time.sleep(1)  # Prevent tight loop in case of errors
+        
+        time.sleep(0.01)  # Small delay to prevent CPU overuse
 
 # Start background thread to read serial for IR correction
 if nav_serial_available:
