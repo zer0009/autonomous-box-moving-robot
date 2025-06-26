@@ -856,9 +856,20 @@ def qr_status():
     if last_qr_bbox and "distance" in last_qr_bbox:
         distance_info = f" (Distance: {last_qr_bbox['distance']} cm)"
     
+    # Create a copy of last_qr_bbox with NumPy values converted to standard Python types
+    bbox_json = None
+    if last_qr_bbox:
+        bbox_json = {}
+        for key, value in last_qr_bbox.items():
+            # Convert NumPy types to standard Python types
+            if hasattr(value, "item"):  # Check if it's a NumPy type
+                bbox_json[key] = value.item()
+            else:
+                bbox_json[key] = value
+    
     return jsonify({
         "qr_data": last_qr_data + distance_info if last_qr_data else None,
-        "qr_bbox": last_qr_bbox
+        "qr_bbox": bbox_json
     })
 
 @app.route('/set_camera', methods=['POST'])
