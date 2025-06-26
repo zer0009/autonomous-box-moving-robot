@@ -110,7 +110,7 @@ SEQUENCES = {
     'store_back_position_1': [  # 30 Elbow - iterations for position 1
         # Move elbow to position 1
         ('Elbow -', 0.5),
-    ] * 35 + [
+    ] * 38 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 26 steps (reduced from 30)
@@ -120,7 +120,7 @@ SEQUENCES = {
     'store_back_position_2': [  # 40 Elbow - iterations for position 2
         # Move elbow to position 2
         ('Elbow -', 0.5),
-    ] * 45 + [
+    ] * 48 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 36 steps (reduced from 40)
@@ -446,7 +446,7 @@ def serial_reader():
                                 if ir_values[i]:  # If sensor reads 1
                                     binary_value |= (1 << (4-i))  # Set corresponding bit
                             
-                            # Send binary value to navigation ESP32
+                            # Send binary value to navigation ESP32 without colon
                             ir_data = f"IR{binary_value}\n"
                             nav_ser.write(ir_data.encode())
                             print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
@@ -459,6 +459,7 @@ def serial_reader():
                 if line.startswith("CORRECTION:"):
                     latest_correction = line.split(":", 1)[1].strip()
                     robot_state["ir_correction"] = latest_correction
+                    print(f"Received IR correction: {latest_correction}")  # Add debug print
                     
         except Exception as e:
             print(f"Serial reader error: {e}")
@@ -941,20 +942,37 @@ def send_command(cmd_label):
 def send_nav_command(cmd_label):
     """Send a command to the ESP32 navigation controller"""
     if not nav_serial_available:
+        print(f"ERROR: Navigation serial port not available, can't send '{cmd_label}'")
         return "Navigation serial port not available"
     
     cmd = NAV_COMMANDS.get(cmd_label)
     if not cmd:
+        print(f"ERROR: Unknown navigation command: '{cmd_label}'")
         return f"Unknown command: {cmd_label}"
     
     response = ""
     try:
+        print(f"Sending navigation command '{cmd_label}' (byte: '{cmd}')")
         nav_ser.write((cmd + '\n').encode())
-        time.sleep(0.1)
+        
+        # Wait a bit longer for response
+        time.sleep(0.2)
+        
+        # Read response if available
+        response_data = ""
         while nav_ser.in_waiting:
-            response += nav_ser.readline().decode(errors='ignore')
+            response_data += nav_ser.readline().decode(errors='ignore')
+            
+        if response_data:
+            print(f"Received navigation response: {response_data.strip()}")
+            response = response_data
+        else:
+            print("No navigation response received")
+            response = "No response"
     except Exception as e:
-        response = f"Error: {str(e)}"
+        error_msg = f"Error: {str(e)}"
+        print(f"ERROR sending navigation command '{cmd_label}': {error_msg}")
+        response = error_msg
     
     return response
 
@@ -1109,6 +1127,7 @@ MAIN_HTML = """
             <a href="/manual_sequence"><button class="mode-button {% if mode == 'sequence' %}active-mode{% endif %}">Sequence Control</button></a>
             <a href="/status"><button class="mode-button {% if mode == 'status' %}active-mode{% endif %}">Robot Status</button></a>
             <a href="/sequence_analysis"><button class="mode-button {% if mode == 'analysis' %}active-mode{% endif %}">Sequence Analysis</button></a>
+            <a href="/debug_serial"><button class="mode-button {% if mode == 'debug' %}active-mode{% endif %}">Debug Serial</button></a>
         </div>
         
         <div class="current-mode">
@@ -1863,6 +1882,155 @@ def cleanup():
     if nav_serial_available:
         nav_ser.close()
     qr_generator.close()
+
+# Add this function after the other utility functions
+def debug_serial_connections():
+    """Check the status of serial connections and return diagnostic information"""
+    arm_status = {
+        "available": arm_serial_available,
+        "port": ARM_SERIAL_PORT if arm_serial_available else "Not connected",
+        "in_waiting": arm_ser.in_waiting if arm_serial_available else "N/A"
+    }
+    
+    nav_status = {
+        "available": nav_serial_available,
+        "port": NAV_SERIAL_PORT if nav_serial_available else "Not connected",
+        "in_waiting": nav_ser.in_waiting if nav_serial_available else "N/A"
+    }
+    
+    # Try to send a test message to navigation ESP32 if available
+    nav_test_result = "Not attempted"
+    if nav_serial_available:
+        try:
+            print("Sending test message to navigation ESP32...")
+            nav_ser.write(b"TEST\n")
+            time.sleep(0.5)
+            response = ""
+            while nav_ser.in_waiting:
+                response += nav_ser.readline().decode(errors='ignore')
+            nav_test_result = f"Response: {response}" if response else "No response received"
+        except Exception as e:
+            nav_test_result = f"Error: {str(e)}"
+    
+    return {
+        "arm_serial": arm_status,
+        "nav_serial": nav_status,
+        "latest_correction": latest_correction,
+        "nav_test_result": nav_test_result
+    }
+
+# Add this route after the other routes
+@app.route('/debug_serial')
+def debug_serial_page():
+    """Page showing debug information for serial connections"""
+    debug_info = debug_serial_connections()
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Serial Connection Debug</title>
+        <style>
+            body {{ font-family: Arial; text-align: center; }}
+            .container {{ max-width: 800px; margin: 0 auto; }}
+            .debug-panel {{ margin: 20px; padding: 20px; background-color: #f0f0f0; border-radius: 5px; text-align: left; }}
+            .status-item {{ margin: 10px 0; }}
+            .back-button {{ background-color: #f0f0f0; width: 150px; height: 40px; }}
+            .available {{ color: green; font-weight: bold; }}
+            .unavailable {{ color: red; font-weight: bold; }}
+            .test-button {{ margin: 20px; }}
+        </style>
+        <script>
+            function refreshDebug() {{
+                location.reload();
+            }}
+            
+            function sendTestIR() {{
+                fetch('/send_test_ir')
+                    .then(response => response.json())
+                    .then(data => {{
+                        document.getElementById('test-result').innerText = data.result;
+                    }});
+            }}
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Serial Connection Debug</h1>
+            <a href="/"><button class="back-button">Back to Main Menu</button></a>
+            
+            <div class="debug-panel">
+                <h2>Arm Serial Status</h2>
+                <div class="status-item">
+                    <strong>Available:</strong> 
+                    <span class="{('available' if debug_info['arm_serial']['available'] else 'unavailable')}">
+                        {debug_info['arm_serial']['available']}
+                    </span>
+                </div>
+                <div class="status-item">
+                    <strong>Port:</strong> {debug_info['arm_serial']['port']}
+                </div>
+                <div class="status-item">
+                    <strong>Bytes in buffer:</strong> {debug_info['arm_serial']['in_waiting']}
+                </div>
+                
+                <h2>Navigation Serial Status</h2>
+                <div class="status-item">
+                    <strong>Available:</strong> 
+                    <span class="{('available' if debug_info['nav_serial']['available'] else 'unavailable')}">
+                        {debug_info['nav_serial']['available']}
+                    </span>
+                </div>
+                <div class="status-item">
+                    <strong>Port:</strong> {debug_info['nav_serial']['port']}
+                </div>
+                <div class="status-item">
+                    <strong>Bytes in buffer:</strong> {debug_info['nav_serial']['in_waiting']}
+                </div>
+                <div class="status-item">
+                    <strong>Latest Correction:</strong> {debug_info['latest_correction']}
+                </div>
+                <div class="status-item">
+                    <strong>Test Result:</strong> {debug_info['nav_test_result']}
+                </div>
+                
+                <div class="test-button">
+                    <button onclick="sendTestIR()">Send Test IR Signal</button>
+                    <button onclick="refreshDebug()">Refresh</button>
+                    <div id="test-result"></div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
+
+@app.route('/send_test_ir')
+def send_test_ir():
+    """Send a test IR signal to the navigation ESP32"""
+    result = "Not attempted"
+    if nav_serial_available:
+        try:
+            # Send a test IR signal with all sensors active - without colon
+            test_ir = "IR31\n"  # 31 = 11111 in binary
+            nav_ser.write(test_ir.encode())
+            print(f"Sent test IR signal: {test_ir.strip()}")
+            
+            # Wait for response
+            time.sleep(0.5)
+            response = ""
+            while nav_ser.in_waiting:
+                response += nav_ser.readline().decode(errors='ignore')
+            
+            result = f"Response: {response}" if response else "No response received"
+        except Exception as e:
+            result = f"Error: {str(e)}"
+    else:
+        result = "Navigation serial port not available"
+    
+    return jsonify({"result": result})
 
 if __name__ == '__main__':
     try:
