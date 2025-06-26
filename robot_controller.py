@@ -110,26 +110,35 @@ SEQUENCES = {
     'store_back_position_1': [  # Position 1 sequence
         # Move elbow to position 1 - exactly 38 steps down
     ] + [('Elbow -', 0.5) for _ in range(38)] + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 30 steps up
-    ] + [('Elbow +', 0.5) for _ in range(30)],
+    ] + [('Elbow +', 0.5) for _ in range(38)],
 
     'store_back_position_2': [  # Position 2 sequence
         # Move elbow to position 2 - exactly 48 steps down
     ] + [('Elbow -', 0.5) for _ in range(48)] + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 40 steps up
-    ] + [('Elbow +', 0.5) for _ in range(40)],
+    ] + [('Elbow +', 0.5) for _ in range(48)],
 
     'store_back_position_3': [  # Position 3 sequence
         # Move elbow to position 3 - exactly 55 steps down
     ] + [('Elbow -', 0.5) for _ in range(55)] + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 50 steps up
-    ] + [('Elbow +', 0.5) for _ in range(50)],
+    ] + [('Elbow +', 0.5) for _ in range(55)],
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
