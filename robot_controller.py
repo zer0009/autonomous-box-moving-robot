@@ -83,6 +83,7 @@ SEQUENCES = {
         ('Shoulder -', 0.5),     
         ('Shoulder -', 0.5),     
         ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
         ('Shoulder -', 0.5),     # Complete lowering
         ('Gripper Close', 1.0),  # Grip box
         ('Shoulder +', 0.5),     # Lift box
@@ -128,75 +129,123 @@ SEQUENCES = {
     ] * 50,
 
     'return_to_home': [
-        ('Base +', 0.5),         # Return base to center
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder -', 0.5),     # Lower shoulder to neutral
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
+        # Return base to center - exact reverse of turn to back
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),         # Reverse turn 3
+        ('Base +', 0.5),         # Reverse turn 4
+        ('Base +', 0.5),         # Reverse turn 5
+        ('Base +', 0.5),         # Reverse turn 6
+        ('Base +', 0.5),         # Reverse turn 7
+        ('Base +', 0.5),         # Reverse turn 8
+        ('Base +', 0.5),         # Reverse turn 9
+        # Return shoulder to original position - exact reverse of initial movement
+        ('Shoulder -', 0.5),     # Reverse lift 1
+        ('Shoulder -', 0.5),     # Reverse lift 2
+        ('Shoulder -', 0.5),     # Reverse lift 3
+        ('Shoulder -', 0.5),     # Reverse lift 4
+        ('Shoulder -', 0.5),     # Reverse lift 5
+        ('Shoulder -', 0.5),     # Reverse lift 6
+        ('Shoulder -', 0.5),     # Reverse lift 7
+        ('Shoulder -', 0.5),     # Reverse lift 8
+        ('Shoulder -', 0.5),     # Reverse lift 9
+        ('Shoulder -', 0.5),     # Reverse lift 10
+        ('Shoulder -', 0.5),     # Reverse lift 11
         ('Disable Arm', 0.5),    # Disable arm
     ],
 
     'pick_from_back_1': [  # Pick from first back position
         ('Enable Arm', 1.0),
-        ('Base -', 0.5),         # Turn to back
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
+        # Turn to back - same as initial sequence
+        ('Base -', 0.5),         # Turn 1
+        ('Base -', 0.5),         # Turn 2
+        ('Base -', 0.5),         # Turn 3
+        ('Base -', 0.5),         # Turn 4
+        ('Base -', 0.5),         # Turn 5
+        ('Base -', 0.5),         # Turn 6
+        ('Base -', 0.5),         # Turn 7
+        ('Base -', 0.5),         # Turn 8
+        ('Base -', 0.5),         # Turn 9
+        # Move to back position 1
         ('Elbow -', 0.5),
     ] * 30 + [
         ('Gripper Close', 1.0),  # Grip box
         ('Elbow +', 0.5),        # Return elbow
-    ] * 30,
+    ] * 30 + [
+        # Return base to front - reverse of turn
+        ('Base +', 0.5),         # Return turn 1
+        ('Base +', 0.5),         # Return turn 2
+        ('Base +', 0.5),         # Return turn 3
+        ('Base +', 0.5),         # Return turn 4
+        ('Base +', 0.5),         # Return turn 5
+        ('Base +', 0.5),         # Return turn 6
+        ('Base +', 0.5),         # Return turn 7
+        ('Base +', 0.5),         # Return turn 8
+        ('Base +', 0.5),         # Return turn 9
+    ],
 
     'pick_from_back_2': [  # Pick from second back position
         ('Enable Arm', 1.0),
-        ('Base -', 0.5),         # Turn to back
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
+        # Turn to back - same as initial sequence
+        ('Base -', 0.5),         # Turn 1
+        ('Base -', 0.5),         # Turn 2
+        ('Base -', 0.5),         # Turn 3
+        ('Base -', 0.5),         # Turn 4
+        ('Base -', 0.5),         # Turn 5
+        ('Base -', 0.5),         # Turn 6
+        ('Base -', 0.5),         # Turn 7
+        ('Base -', 0.5),         # Turn 8
+        ('Base -', 0.5),         # Turn 9
+        # Move to back position 2
         ('Elbow -', 0.5),
     ] * 40 + [
         ('Gripper Close', 1.0),  # Grip box
         ('Elbow +', 0.5),        # Return elbow
-    ] * 40,
+    ] * 40 + [
+        # Return base to front - reverse of turn
+        ('Base +', 0.5),         # Return turn 1
+        ('Base +', 0.5),         # Return turn 2
+        ('Base +', 0.5),         # Return turn 3
+        ('Base +', 0.5),         # Return turn 4
+        ('Base +', 0.5),         # Return turn 5
+        ('Base +', 0.5),         # Return turn 6
+        ('Base +', 0.5),         # Return turn 7
+        ('Base +', 0.5),         # Return turn 8
+        ('Base +', 0.5),         # Return turn 9
+    ],
 
     'pick_from_back_3': [  # Pick from third back position
         ('Enable Arm', 1.0),
-        ('Base -', 0.5),         # Turn to back
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
+        # Turn to back - same as initial sequence
+        ('Base -', 0.5),         # Turn 1
+        ('Base -', 0.5),         # Turn 2
+        ('Base -', 0.5),         # Turn 3
+        ('Base -', 0.5),         # Turn 4
+        ('Base -', 0.5),         # Turn 5
+        ('Base -', 0.5),         # Turn 6
+        ('Base -', 0.5),         # Turn 7
+        ('Base -', 0.5),         # Turn 8
+        ('Base -', 0.5),         # Turn 9
+        # Move to back position 3
         ('Elbow -', 0.5),
     ] * 50 + [
         ('Gripper Close', 1.0),  # Grip box
         ('Elbow +', 0.5),        # Return elbow
-    ] * 50,
+    ] * 50 + [
+        # Return base to front - reverse of turn
+        ('Base +', 0.5),         # Return turn 1
+        ('Base +', 0.5),         # Return turn 2
+        ('Base +', 0.5),         # Return turn 3
+        ('Base +', 0.5),         # Return turn 4
+        ('Base +', 0.5),         # Return turn 5
+        ('Base +', 0.5),         # Return turn 6
+        ('Base +', 0.5),         # Return turn 7
+        ('Base +', 0.5),         # Return turn 8
+        ('Base +', 0.5),         # Return turn 9
+    ],
 
     'place_on_shelf_a': [
+        # Move to shelf A
         ('Base +', 0.5),         # Turn to shelf A
         ('Base +', 0.5),
         ('Base +', 0.5),
@@ -207,16 +256,22 @@ SEQUENCES = {
         ('Elbow -', 0.5),
         ('Elbow -', 0.5),
         ('Gripper Open', 1.0),   # Release box
-        ('Elbow +', 0.5),        # Return to neutral
+        # Return to neutral - exact reverse of positioning
+        ('Elbow +', 0.5),        # Return elbow
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),     # Return shoulder
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
+        # Return base to center
+        ('Base -', 0.5),         # Return base
+        ('Base -', 0.5),
+        ('Base -', 0.5),
         ('Disable Arm', 0.5),
     ],
 
     'place_on_shelf_b': [
+        # Move to shelf B
         ('Base +', 0.5),         # Turn to shelf B
         ('Base +', 0.5),
         ('Base +', 0.5),
@@ -230,18 +285,25 @@ SEQUENCES = {
         ('Elbow -', 0.5),
         ('Elbow -', 0.5),
         ('Gripper Open', 1.0),   # Release box
-        ('Elbow +', 0.5),        # Return to neutral
+        # Return to neutral - exact reverse of positioning
+        ('Elbow +', 0.5),        # Return elbow
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),     # Return shoulder
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
+        # Return base to center
+        ('Base -', 0.5),         # Return base
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
         ('Disable Arm', 0.5),
     ],
 
     'place_on_shelf_c': [
+        # Move to shelf C
         ('Base +', 0.5),         # Turn to shelf C
         ('Base +', 0.5),
         ('Base +', 0.5),
@@ -258,16 +320,23 @@ SEQUENCES = {
         ('Elbow -', 0.5),
         ('Elbow -', 0.5),
         ('Gripper Open', 1.0),   # Release box
-        ('Elbow +', 0.5),        # Return to neutral
+        # Return to neutral - exact reverse of positioning
+        ('Elbow +', 0.5),        # Return elbow
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),     # Return shoulder
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
         ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
+        # Return base to center
+        ('Base -', 0.5),         # Return base
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
         ('Disable Arm', 0.5),
     ],
 }
@@ -331,14 +400,16 @@ last_qr_bbox = None  # To store bounding box coordinates
 
 # Robot state tracking
 robot_state = {
-    "status": "idle",        # idle, moving, picking, placing
+    "status": "idle",        # idle, moving, picking, placing, navigating
     "carrying_box": None,    # ID of box being carried, or None
     "battery": 100,          # Battery percentage
     "position": "home",      # Current position identifier
     "last_action": "",       # Last action performed
     "error": None,           # Any error state
     "nav_status": "stopped", # Navigation status: stopped, moving, etc.
-    "ir_correction": "N/A"   # IR correction value from navigation ESP32
+    "ir_correction": "N/A",  # IR correction value from navigation ESP32
+    "target_shelf": None,    # Target shelf for navigation
+    "back_position": None    # Current back position being used
 }
 
 def serial_reader():
@@ -523,7 +594,7 @@ def select_sequence_for_box(box_info):
     # Always use the standard sequence regardless of box properties
     return 'standard_sequence'
 
-def update_robot_state(status=None, box_id=None, position=None, action=None, error=None):
+def update_robot_state(status=None, box_id=None, position=None, action=None, error=None, **kwargs):
     """Update the robot's current state"""
     global robot_state
     
@@ -538,8 +609,16 @@ def update_robot_state(status=None, box_id=None, position=None, action=None, err
     if error is not None:  # Could be None to clear the error
         robot_state["error"] = error
     
+    # Handle additional state parameters
+    if "target_shelf" in kwargs:
+        robot_state["target_shelf"] = kwargs["target_shelf"]
+    if "back_position" in kwargs:
+        robot_state["back_position"] = kwargs["back_position"]
+    if "nav_status" in kwargs:
+        robot_state["nav_status"] = kwargs["nav_status"]
+    
     # Simulate battery usage
-    if status in ["moving", "picking", "placing"]:
+    if status in ["moving", "picking", "placing", "navigating"]:
         robot_state["battery"] = max(0, robot_state["battery"] - 0.5)
     
     print(f"Robot state updated: {robot_state}")
@@ -647,18 +726,31 @@ def navigate_to_shelf(target_shelf, back_position, box_id):
         action=f"Moving to {target_shelf}",
         target_shelf=target_shelf,
         back_position=back_position,
-        carrying_box=box_id
+        carrying_box=box_id,
+        nav_status="moving"
     )
     
-    # Enable navigation
-    send_nav_command("Enable Motion")
-    time.sleep(0.5)
-    
-    # Start moving forward
-    send_nav_command("Forward")
-    
-    # Navigation will continue until a shelf QR code is detected
-    # The process_qr_code function will handle detection and stopping
+    try:
+        # Enable navigation
+        send_nav_command("Enable Motion")
+        time.sleep(0.5)
+        
+        # Start moving forward
+        send_nav_command("Forward")
+        
+        # Navigation will continue until a shelf QR code is detected
+        # The process_qr_code function will handle detection and stopping
+    except Exception as e:
+        print(f"Navigation error: {e}")
+        # Stop navigation on error
+        send_nav_command("Stop")
+        send_nav_command("Disable Motion")
+        update_robot_state(
+            status="idle",
+            error=f"Navigation error: {str(e)}",
+            nav_status="stopped",
+            target_shelf=None
+        )
 
 def adjust_navigation(current_marker, target_shelf):
     """Adjust navigation based on detected markers and IR feedback"""
@@ -666,36 +758,51 @@ def adjust_navigation(current_marker, target_shelf):
         print("No target shelf set, cannot adjust navigation")
         return
         
-    # Get current IR correction value
-    ir_correction = robot_state.get("ir_correction", "0")
     try:
-        correction_value = float(ir_correction)
-    except ValueError:
-        correction_value = 0
-    
-    # Parse shelf letters for position comparison
-    current_letter = current_marker[-1] if current_marker else None
-    target_letter = target_shelf[-1] if target_shelf else None
-    
-    if current_letter and target_letter:
-        if current_letter < target_letter:
-            # Need to go further
+        # Get current IR correction value
+        ir_correction = robot_state.get("ir_correction", "0")
+        try:
+            correction_value = float(ir_correction)
+        except ValueError:
+            correction_value = 0
+        
+        # Parse shelf letters for position comparison
+        current_letter = current_marker[-1] if current_marker else None
+        target_letter = target_shelf[-1] if target_shelf else None
+        
+        print(f"Adjusting navigation: Current={current_letter}, Target={target_letter}, IR={correction_value}")
+        
+        if current_letter and target_letter:
+            if current_letter < target_letter:
+                # Need to go further
+                print("Target is ahead, moving forward")
+                send_nav_command("Forward")
+                update_robot_state(action="Moving forward to target")
+            elif current_letter > target_letter:
+                # Went too far, need to back up
+                print("Passed target, moving backward")
+                send_nav_command("Backward")
+                update_robot_state(action="Moving backward to target")
+                
+        # Apply IR correction
+        if correction_value > 1:
+            # Too far right, adjust left
+            print("Correcting left")
+            send_nav_command("Left")
+            update_robot_state(action=f"Correcting left (IR: {correction_value})")
+        elif correction_value < -1:
+            # Too far left, adjust right
+            print("Correcting right")
+            send_nav_command("Right")
+            update_robot_state(action=f"Correcting right (IR: {correction_value})")
+        
+        # Resume forward motion if we're not at the target
+        if current_marker != target_shelf:
             send_nav_command("Forward")
-        elif current_letter > target_letter:
-            # Went too far, need to back up
-            send_nav_command("Backward")
             
-    # Apply IR correction
-    if correction_value > 1:
-        # Too far right, adjust left
-        send_nav_command("Left")
-    elif correction_value < -1:
-        # Too far left, adjust right
-        send_nav_command("Right")
-    
-    # Resume forward motion if we're not at the target
-    if current_marker != target_shelf:
-        send_nav_command("Forward")
+    except Exception as e:
+        print(f"Navigation adjustment error: {e}")
+        update_robot_state(error=f"Navigation adjustment error: {str(e)}")
 
 def complete_shelf_placement():
     """Complete the box placement after reaching the target shelf"""
@@ -705,18 +812,29 @@ def complete_shelf_placement():
     
     if not (back_position and target_shelf):
         print("Missing required state information for shelf placement")
-        update_robot_state(error="Missing state information")
+        update_robot_state(
+            error="Missing state information",
+            status="idle",
+            nav_status="stopped"
+        )
         return
         
     shelf_letter = target_shelf[-1].lower()
     
     try:
         # Pick up box from back position
-        update_robot_state(status="retrieving", action=f"Retrieving box from back position {back_position}")
+        update_robot_state(
+            status="retrieving",
+            action=f"Retrieving box from back position {back_position}",
+            nav_status="stopped"
+        )
         execute_sequence(f'pick_from_back_{back_position}')
         
         # Place on the correct shelf
-        update_robot_state(status="placing", action=f"Placing box on shelf {shelf_letter.upper()}")
+        update_robot_state(
+            status="placing",
+            action=f"Placing box on shelf {shelf_letter.upper()}"
+        )
         execute_sequence(f'place_on_shelf_{shelf_letter}')
         
         # Reset state
@@ -725,13 +843,17 @@ def complete_shelf_placement():
             action="Completed box placement",
             target_shelf=None,
             back_position=None,
-            carrying_box=None
+            carrying_box=None,
+            nav_status="stopped"
         )
         
     except Exception as e:
         print(f"Error during shelf placement: {e}")
-        update_robot_state(error=f"Placement error: {str(e)}")
-        update_robot_state(status="idle")
+        update_robot_state(
+            error=f"Placement error: {str(e)}",
+            status="idle",
+            nav_status="stopped"
+        )
 
 def send_command(cmd_label):
     """Send a command to the ESP32 arm controller"""
