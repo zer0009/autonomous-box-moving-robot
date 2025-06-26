@@ -107,24 +107,33 @@ SEQUENCES = {
         ('Base -', 0.5),         # Complete turn to back
     ],
 
-    'store_back_position_1': [  # 30 Elbow - iterations
+    'store_back_position_1': [  # 30 Elbow - iterations for position 1
+        # Move elbow to position 1
         ('Elbow -', 0.5),
     ] * 30 + [
+        # Release box
         ('Gripper Open', 1.0),   # Release box
+        # Return elbow exactly 30 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 30,
 
-    'store_back_position_2': [  # 40 Elbow - iterations
+    'store_back_position_2': [  # 40 Elbow - iterations for position 2
+        # Move elbow to position 2
         ('Elbow -', 0.5),
     ] * 40 + [
+        # Release box
         ('Gripper Open', 1.0),   # Release box
+        # Return elbow exactly 40 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 40,
 
-    'store_back_position_3': [  # 50 Elbow - iterations
+    'store_back_position_3': [  # 50 Elbow - iterations for position 3
+        # Move elbow to position 3
         ('Elbow -', 0.5),
     ] * 50 + [
+        # Release box
         ('Gripper Open', 1.0),   # Release box
+        # Return elbow exactly 50 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 50,
 
@@ -154,7 +163,7 @@ SEQUENCES = {
         ('Disable Arm', 0.5),    # Disable arm
     ],
 
-    'pick_from_back_1': [  # Pick from first back position
+    'pick_from_back_1': [  # Pick from first back position (30 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -166,10 +175,12 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move to back position 1
+        # Move elbow to position 1 - exactly 30 steps
         ('Elbow -', 0.5),
     ] * 30 + [
+        # Grip box
         ('Gripper Close', 1.0),  # Grip box
+        # Return elbow - exactly 30 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 30 + [
         # Return base to front - reverse of turn
@@ -184,7 +195,7 @@ SEQUENCES = {
         ('Base +', 0.5),         # Return turn 9
     ],
 
-    'pick_from_back_2': [  # Pick from second back position
+    'pick_from_back_2': [  # Pick from second back position (40 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -196,10 +207,12 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move to back position 2
+        # Move elbow to position 2 - exactly 40 steps
         ('Elbow -', 0.5),
     ] * 40 + [
+        # Grip box
         ('Gripper Close', 1.0),  # Grip box
+        # Return elbow - exactly 40 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 40 + [
         # Return base to front - reverse of turn
@@ -214,7 +227,7 @@ SEQUENCES = {
         ('Base +', 0.5),         # Return turn 9
     ],
 
-    'pick_from_back_3': [  # Pick from third back position
+    'pick_from_back_3': [  # Pick from third back position (50 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -226,10 +239,12 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move to back position 3
+        # Move elbow to position 3 - exactly 50 steps
         ('Elbow -', 0.5),
     ] * 50 + [
+        # Grip box
         ('Gripper Close', 1.0),  # Grip box
+        # Return elbow - exactly 50 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 50 + [
         # Return base to front - reverse of turn
@@ -858,20 +873,35 @@ def complete_shelf_placement():
 def send_command(cmd_label):
     """Send a command to the ESP32 arm controller"""
     if not arm_serial_available:
+        print(f"ERROR: Arm serial port not available, can't send '{cmd_label}'")
         return "Arm serial port not available"
     
     cmd = ARM_COMMANDS.get(cmd_label)
     if not cmd:
+        print(f"ERROR: Unknown command: '{cmd_label}'")
         return f"Unknown command: {cmd_label}"
     
     response = ""
     try:
+        print(f"Sending command '{cmd_label}' (byte: '{cmd}')")
         arm_ser.write(cmd.encode())
         time.sleep(0.1)
+        
+        # Read response if available
+        response_data = ""
         while arm_ser.in_waiting:
-            response += arm_ser.readline().decode(errors='ignore')
+            response_data += arm_ser.readline().decode(errors='ignore')
+            
+        if response_data:
+            print(f"Received response: {response_data.strip()}")
+            response = response_data
+        else:
+            print("No response received")
+            response = "No response"
     except Exception as e:
-        response = f"Error: {str(e)}"
+        error_msg = f"Error: {str(e)}"
+        print(f"ERROR sending command '{cmd_label}': {error_msg}")
+        response = error_msg
     
     return response
 
@@ -921,19 +951,103 @@ def execute_sequence(sequence_name):
     
     try:
         sequence = SEQUENCES[sequence_name]
-        for cmd, delay in sequence:
-            print(f"Executing: {cmd}")
+        print(f"Starting sequence '{sequence_name}' with {len(sequence)} commands")
+        
+        # Count commands by type for verification
+        command_counts = {}
+        for cmd, _ in sequence:
+            command_counts[cmd] = command_counts.get(cmd, 0) + 1
+        print(f"Command distribution: {command_counts}")
+        
+        # Execute each command in sequence
+        for i, (cmd, delay) in enumerate(sequence):
+            print(f"Executing command {i+1}/{len(sequence)}: {cmd} with delay {delay}")
             response = send_command(cmd)
             if "Error" in response:
                 update_robot_state(error=f"Command failed: {cmd} - {response}")
+                print(f"ERROR: Command failed: {cmd} - {response}")
                 return f"Sequence {sequence_name} failed: {response}"
+            
+            # Wait for the specified delay
+            print(f"Waiting for {delay} seconds")
             time.sleep(delay)
+            
+            # Add a small pause between commands for stability
+            if i < len(sequence) - 1:
+                time.sleep(0.1)
         
+        print(f"Sequence '{sequence_name}' completed successfully")
         update_robot_state(status="idle", action=f"Completed sequence: {sequence_name}")
         return f"Sequence {sequence_name} completed"
     except Exception as e:
-        update_robot_state(error=f"Sequence error: {str(e)}")
+        error_msg = f"Sequence error: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        update_robot_state(error=error_msg)
         return f"Sequence {sequence_name} failed: {str(e)}"
+
+def analyze_sequence(sequence_name):
+    """Analyze a sequence structure and return debug information"""
+    if sequence_name not in SEQUENCES:
+        return {"error": f"Unknown sequence: {sequence_name}"}
+    
+    sequence = SEQUENCES[sequence_name]
+    
+    # Count commands by type
+    command_counts = {}
+    for cmd, _ in sequence:
+        command_counts[cmd] = command_counts.get(cmd, 0) + 1
+    
+    # Check for symmetry in movement commands
+    movement_pairs = {
+        'Base +': 'Base -',
+        'Shoulder +': 'Shoulder -',
+        'Elbow +': 'Elbow -',
+        'Gripper Open': 'Gripper Close'
+    }
+    
+    symmetry_check = {}
+    for cmd1, cmd2 in movement_pairs.items():
+        count1 = command_counts.get(cmd1, 0)
+        count2 = command_counts.get(cmd2, 0)
+        symmetry_check[f"{cmd1}/{cmd2}"] = {
+            "forward": count1,
+            "reverse": count2,
+            "balanced": count1 == count2,
+            "difference": abs(count1 - count2)
+        }
+    
+    # Analyze sequence structure
+    total_steps = len(sequence)
+    total_time = sum(delay for _, delay in sequence)
+    
+    # Check for repeated patterns using Python's list multiplication
+    is_multiplied = False
+    multiplication_factor = 0
+    for pattern_length in range(1, len(sequence) // 2 + 1):
+        for start in range(min(10, len(sequence) - pattern_length)):  # Check first few positions
+            pattern = sequence[start:start+pattern_length]
+            # Try to find if this pattern is repeated
+            for factor in range(2, 100):  # Reasonable upper limit
+                if start + pattern_length * factor > len(sequence):
+                    break
+                if sequence[start:start+pattern_length*factor] == pattern * factor:
+                    is_multiplied = True
+                    multiplication_factor = factor
+                    break
+            if is_multiplied:
+                break
+        if is_multiplied:
+            break
+    
+    return {
+        "name": sequence_name,
+        "total_steps": total_steps,
+        "total_time": total_time,
+        "command_counts": command_counts,
+        "symmetry_check": symmetry_check,
+        "uses_multiplication": is_multiplied,
+        "multiplication_factor": multiplication_factor if is_multiplied else 0
+    }
 
 # HTML templates
 MAIN_HTML = """
@@ -961,6 +1075,7 @@ MAIN_HTML = """
             <a href="/auto"><button class="mode-button {% if mode == 'auto' %}active-mode{% endif %}">Automatic Mode</button></a>
             <a href="/manual_sequence"><button class="mode-button {% if mode == 'sequence' %}active-mode{% endif %}">Sequence Control</button></a>
             <a href="/status"><button class="mode-button {% if mode == 'status' %}active-mode{% endif %}">Robot Status</button></a>
+            <a href="/sequence_analysis"><button class="mode-button {% if mode == 'analysis' %}active-mode{% endif %}">Sequence Analysis</button></a>
         </div>
         
         <div class="current-mode">
@@ -1612,6 +1727,99 @@ def api_calibrate_camera():
         return jsonify({"status": "Camera calibrated", "focal_length": focal_length})
     else:
         return jsonify({"status": "No QR code detected for calibration"})
+
+@app.route('/analyze_sequence/<sequence_name>')
+def api_analyze_sequence(sequence_name):
+    """API endpoint to analyze a sequence structure"""
+    result = analyze_sequence(sequence_name)
+    return jsonify(result)
+
+@app.route('/sequence_analysis')
+def sequence_analysis_page():
+    """Page showing analysis of all sequences"""
+    results = {}
+    for seq_name in SEQUENCES.keys():
+        results[seq_name] = analyze_sequence(seq_name)
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sequence Analysis</title>
+        <style>
+            body { font-family: Arial; text-align: center; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .back-button { background-color: #f0f0f0; width: 150px; height: 40px; margin-bottom: 20px; }
+            .sequence { margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-radius: 8px; text-align: left; }
+            .sequence h3 { margin-top: 0; }
+            .stats { margin: 10px 0; }
+            .symmetry { margin: 15px 0; }
+            .balanced { color: green; }
+            .unbalanced { color: red; font-weight: bold; }
+            .details { margin-top: 10px; }
+            .multiplication { margin-top: 10px; font-style: italic; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Sequence Analysis</h1>
+            <a href="/"><button class="back-button">Back to Main Menu</button></a>
+            
+            <div id="sequences">
+    """
+    
+    for seq_name, analysis in results.items():
+        html += f"""
+                <div class="sequence">
+                    <h3>{seq_name}</h3>
+                    <div class="stats">
+                        <strong>Total Steps:</strong> {analysis['total_steps']}<br>
+                        <strong>Total Time:</strong> {analysis['total_time']} seconds
+                    </div>
+                    
+                    <div class="symmetry">
+                        <strong>Movement Symmetry:</strong><br>
+        """
+        
+        for pair, check in analysis['symmetry_check'].items():
+            balance_class = "balanced" if check['balanced'] else "unbalanced"
+            html += f"""
+                        <div class="{balance_class}">
+                            {pair}: {check['forward']} vs {check['reverse']} 
+                            ({check['difference']} difference)
+                        </div>
+            """
+        
+        html += """
+                    </div>
+                    
+                    <div class="details">
+                        <strong>Command Distribution:</strong><br>
+        """
+        
+        for cmd, count in analysis['command_counts'].items():
+            html += f"                        {cmd}: {count}<br>"
+        
+        if analysis['uses_multiplication']:
+            html += f"""
+                    <div class="multiplication">
+                        This sequence uses pattern multiplication (factor: {analysis['multiplication_factor']})
+                    </div>
+            """
+        
+        html += """
+                    </div>
+                </div>
+        """
+    
+    html += """
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
 
 def cleanup():
     """Clean up resources before exit"""
