@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 
 # Configuration
-SERIAL_PORT = '/dev/ttyACM0'  # or '/dev/ttyACM0' if that's your ESP32 port
+SERIAL_PORT = '/dev/ttyACM1'  # or '/dev/ttyACM0' if that's your ESP32 port
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
