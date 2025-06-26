@@ -70,21 +70,25 @@ NAV_COMMANDS = {
 SEQUENCES = {
     'pick_and_store_back': [
         ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base -', 0.5),         # First base movement 
-        ('Base -', 0.5),         # Second base movement
-        ('Base -', 0.5),  
+        ('Base -', 0.1),         # First base movement 
+        ('Base -', 0.1),         # Second base movement
+        ('Base -', 0.1), 
+        ('Base -', 0.1),   
         ('Gripper Open', 1.0), 
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     # Complete lowering
+        ('Shoulder -', 0.1),     # Lower arm toward box
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),     
+        ('Shoulder -', 0.1),
+        ('Shoulder -', 0.1),
+        ('Shoulder -', 0.1),
+
         ('Gripper Close', 1.0),  # Grip box
         ('Shoulder +', 0.5),     # Lift box
         ('Shoulder +', 0.5),     
@@ -95,39 +99,50 @@ SEQUENCES = {
         ('Shoulder +', 0.5),     
         ('Shoulder +', 0.5),     
         ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     # Complete lifting
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),
         ('Base -', 0.5),         # Turn to back
         ('Base -', 0.5),         
         ('Base -', 0.5),         
         ('Base -', 0.5),         
         ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         # Complete turn to back
+        ('Base -', 0.5),               # Complete turn to back
     ],
 
     'store_back_position_1': [  # 30 Elbow - iterations for position 1
         # Move elbow to position 1
-        ('Elbow -', 0.5),
-    ] * 38 + [
+        ('Elbow -', 0.1),
+    ] * 34 + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 26 steps (reduced from 30)
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 30,
+        ('Elbow +', 0.1),        # Return elbow
+    ] * 32,
 
     'store_back_position_2': [  # 40 Elbow - iterations for position 2
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Move elbow to position 2
         ('Elbow -', 0.5),
     ] * 48 + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 36 steps (reduced from 40)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 40,
+    ] * 42,
 
     'store_back_position_3': [  # 50 Elbow - iterations for position 3
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),
         # Move elbow to position 3
         ('Elbow -', 0.5),
     ] * 55 + [
@@ -135,19 +150,20 @@ SEQUENCES = {
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 50 steps (reduced from 55)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 50,
+    ] * 52,
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
-        ('Base +', 0.5),         # Reverse turn 1
-        ('Base +', 0.5),         # Reverse turn 2
-        ('Base +', 0.5),         # Reverse turn 3
-        ('Base +', 0.5),         # Reverse turn 4
-        ('Base +', 0.5),         # Reverse turn 5
-        ('Base +', 0.5),         # Reverse turn 6
-        ('Base +', 0.5),         # Reverse turn 7
-        ('Base +', 0.5),         # Reverse turn 8
-        ('Base +', 0.5),         # Reverse turn 9
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5), 
+        ('Base +', 0.5)
         # Only disable the arm, not the entire robot
         ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
     ],
