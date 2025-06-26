@@ -104,16 +104,20 @@ SEQUENCES = {
         ('Base -', 0.5),         
         ('Base -', 0.5),         
         ('Base -', 0.5),         
-        ('Base -', 0.5),         # Complete turn to back
+        ('Base -', 0.5),  
+        ('Base -', 0.5),
     ],
 
     'store_back_position_1': [  # Position 1 sequence
         # Move elbow to position 1 - exactly 38 steps down
     ] + [('Elbow -', 0.5) for _ in range(38)] + [
+        ('Base +', 0.5),         # Reverse turn 1
+        ('Base +', 0.5),         # Reverse turn 2
+        ('Base +', 0.5),  
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 30 steps up
-    ] + [('Elbow +', 0.5) for _ in range(30)],
+    ] + [('Elbow +', 0.5) for _ in range(38)],
 
     'store_back_position_2': [  # Position 2 sequence
         # Move elbow to position 2 - exactly 48 steps down
@@ -121,7 +125,7 @@ SEQUENCES = {
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 40 steps up
-    ] + [('Elbow +', 0.5) for _ in range(40)],
+    ] + [('Elbow +', 0.5) for _ in range(48)],
 
     'store_back_position_3': [  # Position 3 sequence
         # Move elbow to position 3 - exactly 55 steps down
@@ -129,7 +133,7 @@ SEQUENCES = {
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 50 steps up
-    ] + [('Elbow +', 0.5) for _ in range(50)],
+    ] + [('Elbow +', 0.5) for _ in range(55)],
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
@@ -336,6 +340,136 @@ SEQUENCES = {
         ('Base -', 0.5),
         ('Base -', 0.5),
         ('Disable Arm', 0.5),
+    ],
+
+    'move_forward_and_place': [
+        # Enable navigation and move forward for 12 seconds
+        ('Enable Motion', 1.0),    # Enable navigation motors
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Forward', 1.0),          # Move forward for 1 second
+        ('Stop', 1.0),             # Stop movement
+        ('Disable Motion', 1.0),   # Disable navigation motors
+        
+        # Now pick up box from back position 1 (using existing sequence)
+        ('Enable Arm', 1.0),
+        # Turn to back - same as initial sequence
+        ('Base -', 0.5),         # Turn 1
+        ('Base -', 0.5),         # Turn 2
+        ('Base -', 0.5),         # Turn 3
+        ('Base -', 0.5),         # Turn 4
+        ('Base -', 0.5),         # Turn 5
+        ('Base -', 0.5),         # Turn 6
+        ('Base -', 0.5),         # Turn 7
+        ('Base -', 0.5),         # Turn 8
+        ('Base -', 0.5),         # Turn 9
+        # Move elbow to position 1 - exactly 30 steps
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        # Grip box
+        ('Gripper Close', 1.0),  # Grip box
+        # Return elbow - exactly 30 steps
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        # Return base to front - reverse of turn
+        ('Base +', 0.5),         # Return turn 1
+        ('Base +', 0.5),         # Return turn 2
+        ('Base +', 0.5),         # Return turn 3
+        ('Base +', 0.5),         # Return turn 4
+        ('Base +', 0.5),         # Return turn 5
+        ('Base +', 0.5),         # Return turn 6
+        ('Base +', 0.5),         # Return turn 7
+        ('Base +', 0.5),         # Return turn 8
+        ('Base +', 0.5),         # Return turn 9
+        
+        # Now place on shelf A (using existing sequence)
+        # Move to shelf A
+        ('Base +', 0.5),         # Turn to shelf A
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder -', 0.5),     # Position for shelf A
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Gripper Open', 1.0),   # Release box
+        # Return to neutral - exact reverse of positioning
+        ('Elbow +', 0.5),        # Return elbow
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),     # Return shoulder
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        # Return base to center
+        ('Base -', 0.5),         # Return base
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Disable Arm', 0.5),    # Disable arm at the end
     ],
 }
 
