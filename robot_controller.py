@@ -17,8 +17,10 @@ import numpy as np
 from PIL import Image
 
 # Configuration
-ARM_SERIAL_PORT = '/dev/ttyACM1'  # or '/dev/ttyACM0' if that's your ESP32 port
-NAV_SERIAL_PORT = '/dev/ttyUSB1'  # ESP32 for navigation
+ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32
+ARM_SERIAL_PORT_ALT = '/dev/ttyACM0'  # Alternative port for arm ESP32
+NAV_SERIAL_PORT = '/dev/ttyUSB1'  # Primary port for navigation ESP32
+NAV_SERIAL_PORT_ALT = '/dev/ttyUSB0'  # Alternative port for navigation ESP32
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
@@ -106,8 +108,6 @@ SEQUENCES = {
         ('Base -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5),        # Position more precisely
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
@@ -226,22 +226,46 @@ SEQUENCES = {
 app = Flask(__name__)
 
 # Initialize serial connection to ESP32 for arm control
+arm_serial_available = False
 try:
+    print(f"Trying to connect to arm ESP32 on {ARM_SERIAL_PORT}...")
     arm_ser = serial.Serial(ARM_SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for ESP32 to reset
     arm_serial_available = True
-except:
-    print(f"Warning: Could not open serial port {ARM_SERIAL_PORT}")
-    arm_serial_available = False
+    print(f"Connected to arm ESP32 on {ARM_SERIAL_PORT}")
+except Exception as e:
+    print(f"Could not open serial port {ARM_SERIAL_PORT}: {e}")
+    try:
+        print(f"Trying alternative port {ARM_SERIAL_PORT_ALT} for arm ESP32...")
+        arm_ser = serial.Serial(ARM_SERIAL_PORT_ALT, BAUDRATE, timeout=1)
+        time.sleep(2)  # Wait for ESP32 to reset
+        arm_serial_available = True
+        print(f"Connected to arm ESP32 on {ARM_SERIAL_PORT_ALT}")
+    except Exception as e2:
+        print(f"Could not open alternative serial port {ARM_SERIAL_PORT_ALT}: {e2}")
+        print("Arm ESP32 connection failed on both ports")
+        arm_serial_available = False
 
 # Initialize serial connection to ESP32 for navigation
+nav_serial_available = False
 try:
+    print(f"Trying to connect to navigation ESP32 on {NAV_SERIAL_PORT}...")
     nav_ser = serial.Serial(NAV_SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for ESP32 to reset
     nav_serial_available = True
-except:
-    print(f"Warning: Could not open serial port {NAV_SERIAL_PORT}")
-    nav_serial_available = False
+    print(f"Connected to navigation ESP32 on {NAV_SERIAL_PORT}")
+except Exception as e:
+    print(f"Could not open serial port {NAV_SERIAL_PORT}: {e}")
+    try:
+        print(f"Trying alternative port {NAV_SERIAL_PORT_ALT} for navigation ESP32...")
+        nav_ser = serial.Serial(NAV_SERIAL_PORT_ALT, BAUDRATE, timeout=1)
+        time.sleep(2)  # Wait for ESP32 to reset
+        nav_serial_available = True
+        print(f"Connected to navigation ESP32 on {NAV_SERIAL_PORT_ALT}")
+    except Exception as e2:
+        print(f"Could not open alternative serial port {NAV_SERIAL_PORT_ALT}: {e2}")
+        print("Navigation ESP32 connection failed on both ports")
+        nav_serial_available = False
 
 # Shared variable for latest IR correction value
 latest_correction = "N/A"
