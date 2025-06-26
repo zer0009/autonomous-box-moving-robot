@@ -3,7 +3,7 @@ import serial
 import time
 import threading
 
-SERIAL_PORT = '/dev/ttyUSB0'  # Change as needed
+SERIAL_PORT = '/dev/ttyUSB1'  # Change as needed
 BAUDRATE = 9600
 
 COMMANDS = {
