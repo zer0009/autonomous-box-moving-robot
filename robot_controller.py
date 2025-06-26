@@ -32,7 +32,7 @@ QR_CODE_REAL_HEIGHT = 3.5  # cm
 # Focal length will be calibrated during runtime
 FOCAL_LENGTH = None
 # Known distance for calibration (in cm)
-KNOWN_DISTANCE = 30.0  # cm
+KNOWN_DISTANCE = 20.0  # cm
 # Known width in pixels at the known distance (will be calibrated)
 KNOWN_WIDTH_PIXELS = None
 
@@ -84,13 +84,71 @@ SEQUENCES = {
         ('Base -', 0.5),         # First turn toward back
         ('Base -', 0.5),         # Second turn
         ('Base -', 0.5),         # Complete turn to robot back
-        ('Elbow +', 0.5),        # Position over storage area
-        ('Elbow +', 0.5),        # Position more precisely
-        ('Gripper Open', 1.0),   # Release box - single command
-        ('Shoulder +', 0.5),     # Move away from box
+        ('Base -', 0.5),         # First turn toward back
+        ('Base -', 0.5),         # Second turn
+        ('Base -', 0.5), 
+        ('Base -', 0.5),         # First turn toward back
+        ('Base -', 0.5),         # Second turn
+        ('Base -', 0.5),
+        ('Base -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5),        # Position more precisely
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+                ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5),        # Position more precisely
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Elbow -', 0.5),        # Position over storage area
+        ('Elbow -', 0.5), 
+        ('Shoulder +', 0.5),  
+        ('Shoulder +', 0.5),  
+        ('Shoulder +', 0.5),  
+        ('Shoulder +', 0.5),  
+        ('Shoulder +', 0.5),  
+        ('Shoulder +', 0.5),  
         ('Base +', 0.5),         # Start returning to position
         ('Base +', 0.5),         # Continue returning
-        ('Base +', 0.5),         # Complete return to starting position
+        ('Base +', 0.5),  
+        ('Gripper Open', 1.0),   # Release box - single command
+        
+        # Complete return sequence
+        ('Elbow +', 0.5),        # Retract arm
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Base +', 0.5),         # Continue turning back to starting position
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder +', 0.5),     # Raise shoulder to home position
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Elbow +', 0.5),        # Adjust elbow to home position
+        ('Elbow +', 0.5),
         ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
