@@ -110,32 +110,32 @@ SEQUENCES = {
     'store_back_position_1': [  # 30 Elbow - iterations for position 1
         # Move elbow to position 1
         ('Elbow -', 0.5),
-    ] * 30 + [
+    ] * 35 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 26 steps (reduced from 30)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 26,
+    ] * 30,
 
     'store_back_position_2': [  # 40 Elbow - iterations for position 2
         # Move elbow to position 2
         ('Elbow -', 0.5),
-    ] * 40 + [
+    ] * 45 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
         # Return elbow exactly 36 steps (reduced from 40)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 36,
+    ] * 40,
 
     'store_back_position_3': [  # 50 Elbow - iterations for position 3
         # Move elbow to position 3
         ('Elbow -', 0.5),
-    ] * 50 + [
+    ] * 55 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 46 steps (reduced from 50)
+        # Return elbow exactly 50 steps (reduced from 55)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 46,
+    ] * 50,
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
@@ -148,19 +148,8 @@ SEQUENCES = {
         ('Base +', 0.5),         # Reverse turn 7
         ('Base +', 0.5),         # Reverse turn 8
         ('Base +', 0.5),         # Reverse turn 9
-        # Return shoulder to original position - exact reverse of initial movement
-        ('Shoulder -', 0.5),     # Reverse lift 1
-        ('Shoulder -', 0.5),     # Reverse lift 2
-        ('Shoulder -', 0.5),     # Reverse lift 3
-        ('Shoulder -', 0.5),     # Reverse lift 4
-        ('Shoulder -', 0.5),     # Reverse lift 5
-        ('Shoulder -', 0.5),     # Reverse lift 6
-        ('Shoulder -', 0.5),     # Reverse lift 7
-        ('Shoulder -', 0.5),     # Reverse lift 8
-        ('Shoulder -', 0.5),     # Reverse lift 9
-        ('Shoulder -', 0.5),     # Reverse lift 10
-        ('Shoulder -', 0.5),     # Reverse lift 11
-        ('Disable Arm', 0.5),    # Disable arm
+        # Only disable the arm, not the entire robot
+        ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
     ],
 
     'pick_from_back_1': [  # Pick from first back position (30 iterations)
@@ -721,6 +710,10 @@ def process_qr_code(qr_data):
             update_robot_state(status="homing", action="Returning to home position")
             execute_sequence('return_to_home')
             
+            # Add a small delay to ensure the arm is fully settled
+            print("Waiting for arm to settle before starting navigation...")
+            time.sleep(1.0)
+            
             # Step 2: Navigate to destination
             destination = box_info[3] if box_info and len(box_info) > 3 else "SHELF_A"
             shelf_letter = destination[-1].upper() if destination.startswith("SHELF_") else "A"
@@ -780,12 +773,18 @@ def navigate_to_shelf(target_shelf, back_position, box_id):
     )
     
     try:
-        # Enable navigation
-        send_nav_command("Enable Motion")
-        time.sleep(0.5)
+        # Enable navigation with more explicit logging
+        print("Enabling navigation motors...")
+        response = send_nav_command("Enable Motion")
+        print(f"Navigation enable response: {response}")
         
-        # Start moving forward
-        send_nav_command("Forward")
+        # Longer delay after enabling motion
+        time.sleep(1.0)
+        
+        # Start moving forward with explicit logging
+        print("Starting forward movement...")
+        response = send_nav_command("Forward")
+        print(f"Forward command response: {response}")
         
         # Navigation will continue until a shelf QR code is detected
         # The process_qr_code function will handle detection and stopping
