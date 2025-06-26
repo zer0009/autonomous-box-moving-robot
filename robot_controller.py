@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Robot Controller with QR Code Integration
-Combines QR code scanning with robotic arm control
+Combines QR code scanning with robotic arm control and AMR navigation
 """
 
 from flask import Flask, render_template_string, request, redirect, url_for, Response, jsonify
@@ -17,7 +17,8 @@ import numpy as np
 from PIL import Image
 
 # Configuration
-SERIAL_PORT = '/dev/ttyACM0'  # or '/dev/ttyACM0' if that's your ESP32 port
+ARM_SERIAL_PORT = '/dev/ttyACM1'  # or '/dev/ttyACM0' if that's your ESP32 port
+NAV_SERIAL_PORT = '/dev/ttyUSB1'  # ESP32 for navigation
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
@@ -37,7 +38,7 @@ KNOWN_DISTANCE = 20.0  # cm
 KNOWN_WIDTH_PIXELS = None
 
 # Commands for the ESP32 arm
-COMMANDS = {
+ARM_COMMANDS = {
     'Enable Arm': 'z',
     'Disable Arm': 'x',
     'Base +': 'w',
@@ -48,6 +49,19 @@ COMMANDS = {
     'Elbow -': 'e',
     'Gripper Open': 'i',
     'Gripper Close': 'o'
+}
+
+# Commands for the ESP32 navigation
+NAV_COMMANDS = {
+    'Forward': 'w',
+    'Backward': 's',
+    'Left': 'a',
+    'Right': 'd',
+    'Rotate CW': 'q',
+    'Rotate CCW': 'e',
+    'Stop': 'x',
+    'Enable Motion': 'z',
+    'Disable Motion': 'x'
 }
 
 # Predefined sequences for common tasks
@@ -92,8 +106,6 @@ SEQUENCES = {
         ('Base -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5),        # Position more precisely
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
         ('Elbow -', 0.5), 
         ('Elbow -', 0.5),        # Position over storage area
@@ -193,7 +205,6 @@ SEQUENCES = {
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
         ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
@@ -214,14 +225,26 @@ SEQUENCES = {
 
 app = Flask(__name__)
 
-# Initialize serial connection to ESP32
+# Initialize serial connection to ESP32 for arm control
 try:
-    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+    arm_ser = serial.Serial(ARM_SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for ESP32 to reset
-    serial_available = True
+    arm_serial_available = True
 except:
-    print(f"Warning: Could not open serial port {SERIAL_PORT}")
-    serial_available = False
+    print(f"Warning: Could not open serial port {ARM_SERIAL_PORT}")
+    arm_serial_available = False
+
+# Initialize serial connection to ESP32 for navigation
+try:
+    nav_ser = serial.Serial(NAV_SERIAL_PORT, BAUDRATE, timeout=1)
+    time.sleep(2)  # Wait for ESP32 to reset
+    nav_serial_available = True
+except:
+    print(f"Warning: Could not open serial port {NAV_SERIAL_PORT}")
+    nav_serial_available = False
+
+# Shared variable for latest IR correction value
+latest_correction = "N/A"
 
 # Initialize QR code generator
 qr_generator = RobotQRGenerator(db_path=DB_PATH)
@@ -240,8 +263,31 @@ robot_state = {
     "battery": 100,          # Battery percentage
     "position": "home",      # Current position identifier
     "last_action": "",       # Last action performed
-    "error": None            # Any error state
+    "error": None,           # Any error state
+    "nav_status": "stopped", # Navigation status: stopped, moving, etc.
+    "ir_correction": "N/A"   # IR correction value from navigation ESP32
 }
+
+def serial_reader():
+    """Thread function to continuously read from navigation serial port"""
+    global latest_correction
+    if not nav_serial_available:
+        return
+        
+    while True:
+        try:
+            line = nav_ser.readline().decode(errors='ignore').strip()
+            if line.startswith("CORRECTION:"):
+                latest_correction = line.split(":", 1)[1].strip()
+                robot_state["ir_correction"] = latest_correction
+        except Exception as e:
+            print(f"Serial reader error: {e}")
+            time.sleep(1)  # Prevent tight loop in case of errors
+
+# Start background thread to read serial for IR correction
+if nav_serial_available:
+    nav_thread = threading.Thread(target=serial_reader, daemon=True)
+    nav_thread.start()
 
 def get_camera():
     """Initialize camera if not already done"""
@@ -496,20 +542,56 @@ def process_qr_code(qr_data):
         update_robot_state(status="idle")
 
 def send_command(cmd_label):
-    """Send a command to the ESP32"""
-    if not serial_available:
-        return "Serial port not available"
+    """Send a command to the ESP32 arm controller"""
+    if not arm_serial_available:
+        return "Arm serial port not available"
     
-    cmd = COMMANDS.get(cmd_label)
+    cmd = ARM_COMMANDS.get(cmd_label)
     if not cmd:
         return f"Unknown command: {cmd_label}"
     
     response = ""
     try:
-        ser.write(cmd.encode())
+        arm_ser.write(cmd.encode())
         time.sleep(0.1)
-        while ser.in_waiting:
-            response += ser.readline().decode(errors='ignore')
+        while arm_ser.in_waiting:
+            response += arm_ser.readline().decode(errors='ignore')
+    except Exception as e:
+        response = f"Error: {str(e)}"
+    
+    return response
+
+def send_nav_command(cmd_label):
+    """Send a command to the ESP32 navigation controller"""
+    if not nav_serial_available:
+        return "Navigation serial port not available"
+    
+    cmd = NAV_COMMANDS.get(cmd_label)
+    if not cmd:
+        return f"Unknown command: {cmd_label}"
+    
+    response = ""
+    try:
+        nav_ser.write((cmd + '\n').encode())
+        time.sleep(0.1)
+        while nav_ser.in_waiting:
+            response += nav_ser.readline().decode(errors='ignore')
+    except Exception as e:
+        response = f"Error: {str(e)}"
+    
+    return response
+
+def send_correction(correction_value):
+    """Send a correction value to the navigation controller"""
+    if not nav_serial_available:
+        return "Navigation serial port not available"
+    
+    response = ""
+    try:
+        nav_ser.write((str(correction_value) + '\n').encode())
+        time.sleep(0.1)
+        while nav_ser.in_waiting:
+            response += nav_ser.readline().decode(errors='ignore')
     except Exception as e:
         response = f"Error: {str(e)}"
     
@@ -560,7 +642,8 @@ MAIN_HTML = """
         
         <div class="mode-selector">
             <h2>Select Operation Mode</h2>
-            <a href="/manual"><button class="mode-button {% if mode == 'manual' %}active-mode{% endif %}">Manual Control</button></a>
+            <a href="/manual"><button class="mode-button {% if mode == 'manual' %}active-mode{% endif %}">Arm Control</button></a>
+            <a href="/navigation"><button class="mode-button {% if mode == 'navigation' %}active-mode{% endif %}">Navigation Control</button></a>
             <a href="/auto"><button class="mode-button {% if mode == 'auto' %}active-mode{% endif %}">Automatic Mode</button></a>
             <a href="/manual_sequence"><button class="mode-button {% if mode == 'sequence' %}active-mode{% endif %}">Sequence Control</button></a>
             <a href="/status"><button class="mode-button {% if mode == 'status' %}active-mode{% endif %}">Robot Status</button></a>
@@ -613,6 +696,63 @@ MANUAL_HTML = """
         </div>
     </form>
     
+    {% if response %}
+    <div>
+        <h3>ESP32 Response:</h3>
+        <pre>{{ response }}</pre>
+    </div>
+    {% endif %}
+</body>
+</html>
+"""
+
+NAV_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AMR Control GUI</title>
+    <style>
+        body { font-family: Arial; text-align: center; }
+        button { width: 120px; height: 40px; margin: 8px; font-size: 18px; }
+        .row { margin-bottom: 16px; }
+        input[type=number] { width: 80px; font-size: 18px; }
+        .irbox { margin: 30px auto; background: #222; color: #0f0; padding: 12px 0; border-radius: 8px; width: 320px; font-size: 22px; }
+        .back-button { background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>AMR Motion Control</h1>
+    <a href="/"><button class="back-button">Back to Main Menu</button></a>
+    
+    <form method="post">
+        <div class="row">
+            <button name="cmd" value="Enable Motion">Enable Motion</button>
+            <button name="cmd" value="Disable Motion">Disable Motion</button>
+        </div>
+        <div class="row">
+            <button name="cmd" value="Forward">Forward</button>
+        </div>
+        <div class="row">
+            <button name="cmd" value="Left">Left</button>
+            <button name="cmd" value="Stop">Stop</button>
+            <button name="cmd" value="Right">Right</button>
+        </div>
+        <div class="row">
+            <button name="cmd" value="Backward">Backward</button>
+        </div>
+        <div class="row">
+            <button name="cmd" value="Rotate CW">Rotate CW</button>
+            <button name="cmd" value="Rotate CCW">Rotate CCW</button>
+        </div>
+    </form>
+    <form method="post" style="margin-top:30px;">
+        <label>Correction value (e.g. -2, 3): </label>
+        <input type="number" name="correction" required>
+        <button type="submit" name="send_correction" value="1">Send Correction</button>
+    </form>
+    <div class="irbox">
+        <b>Latest IR Correction:</b> {{ latest_correction }}
+    </div>
     {% if response %}
     <div>
         <h3>ESP32 Response:</h3>
@@ -846,13 +986,38 @@ def index():
 
 @app.route('/manual', methods=['GET', 'POST'])
 def manual_control():
-    """Manual control page"""
+    """Manual arm control page"""
     response = ""
     if request.method == 'POST':
         cmd_label = request.form['cmd']
         response = send_command(cmd_label)
     
     return render_template_string(MANUAL_HTML, response=response)
+
+@app.route('/navigation', methods=['GET', 'POST'])
+def navigation_control():
+    """Navigation control page"""
+    response = ""
+    global latest_correction
+    
+    if request.method == 'POST':
+        if 'cmd' in request.form:
+            cmd_label = request.form['cmd']
+            response = send_nav_command(cmd_label)
+            # Update robot state based on command
+            if cmd_label == 'Stop' or cmd_label == 'Disable Motion':
+                robot_state["nav_status"] = "stopped"
+            elif cmd_label == 'Enable Motion':
+                robot_state["nav_status"] = "enabled"
+            else:
+                robot_state["nav_status"] = "moving"
+                
+        elif 'send_correction' in request.form:
+            correction = request.form.get('correction')
+            if correction:
+                response = send_correction(correction)
+    
+    return render_template_string(NAV_HTML, response=response, latest_correction=latest_correction)
 
 @app.route('/auto')
 def auto_control():
@@ -1053,6 +1218,8 @@ def status_page():
                         document.getElementById('battery').innerText = data.battery + "%";
                         document.getElementById('position').innerText = data.position;
                         document.getElementById('action').innerText = data.last_action;
+                        document.getElementById('nav-status').innerText = data.nav_status;
+                        document.getElementById('ir-correction').innerText = data.ir_correction;
                         
                         if (data.error) {{
                             document.getElementById('error').innerText = data.error;
@@ -1104,6 +1271,12 @@ def status_page():
                 <div class="status-item">
                     <strong>Last Action:</strong> <span id="action">None</span>
                 </div>
+                <div class="status-item">
+                    <strong>Navigation Status:</strong> <span id="nav-status">stopped</span>
+                </div>
+                <div class="status-item">
+                    <strong>IR Correction:</strong> <span id="ir-correction">N/A</span>
+                </div>
                 <div class="status-item error" id="error" style="display: none;">
                     <strong>Error:</strong> <span id="error-message">None</span>
                 </div>
@@ -1130,8 +1303,10 @@ def cleanup():
     """Clean up resources before exit"""
     if camera_running:
         release_camera()
-    if serial_available:
-        ser.close()
+    if arm_serial_available:
+        arm_ser.close()
+    if nav_serial_available:
+        nav_ser.close()
     qr_generator.close()
 
 if __name__ == '__main__':
