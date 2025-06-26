@@ -107,35 +107,35 @@ SEQUENCES = {
         ('Base -', 0.5),         # Complete turn to back
     ],
 
-    'store_back_position_1': [  # 40 Elbow - iterations for position 1
+    'store_back_position_1': [  # 30 Elbow - iterations for position 1
         # Move elbow to position 1
+        ('Elbow -', 0.5),
+    ] * 30 + [
+        # Release box
+        ('Gripper Open', 1.0),   # Release box
+        # Return elbow exactly 26 steps (reduced from 30)
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 26,
+
+    'store_back_position_2': [  # 40 Elbow - iterations for position 2
+        # Move elbow to position 2
         ('Elbow -', 0.5),
     ] * 40 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 40 steps
+        # Return elbow exactly 36 steps (reduced from 40)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 40,
+    ] * 36,
 
-    'store_back_position_2': [  # 50 Elbow - iterations for position 2
-        # Move elbow to position 2
+    'store_back_position_3': [  # 50 Elbow - iterations for position 3
+        # Move elbow to position 3
         ('Elbow -', 0.5),
     ] * 50 + [
         # Release box
         ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 50 steps
+        # Return elbow exactly 46 steps (reduced from 50)
         ('Elbow +', 0.5),        # Return elbow
-    ] * 50,
-
-    'store_back_position_3': [  # 60 Elbow - iterations for position 3
-        # Move elbow to position 3
-        ('Elbow -', 0.5),
-    ] * 60 + [
-        # Release box
-        ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 60 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 60,
+    ] * 46,
 
     'return_to_home': [
         # Return base to center - exact reverse of turn to back
@@ -163,7 +163,7 @@ SEQUENCES = {
         ('Disable Arm', 0.5),    # Disable arm
     ],
 
-    'pick_from_back_1': [  # Pick from first back position (40 iterations)
+    'pick_from_back_1': [  # Pick from first back position (30 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -175,7 +175,39 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 1 - exactly 40 steps
+        # Move elbow to position 1 - exactly 30 steps
+        ('Elbow -', 0.5),
+    ] * 30 + [
+        # Grip box
+        ('Gripper Close', 1.0),  # Grip box
+        # Return elbow - exactly 30 steps
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 30 + [
+        # Return base to front - reverse of turn
+        ('Base +', 0.5),         # Return turn 1
+        ('Base +', 0.5),         # Return turn 2
+        ('Base +', 0.5),         # Return turn 3
+        ('Base +', 0.5),         # Return turn 4
+        ('Base +', 0.5),         # Return turn 5
+        ('Base +', 0.5),         # Return turn 6
+        ('Base +', 0.5),         # Return turn 7
+        ('Base +', 0.5),         # Return turn 8
+        ('Base +', 0.5),         # Return turn 9
+    ],
+
+    'pick_from_back_2': [  # Pick from second back position (40 iterations)
+        ('Enable Arm', 1.0),
+        # Turn to back - same as initial sequence
+        ('Base -', 0.5),         # Turn 1
+        ('Base -', 0.5),         # Turn 2
+        ('Base -', 0.5),         # Turn 3
+        ('Base -', 0.5),         # Turn 4
+        ('Base -', 0.5),         # Turn 5
+        ('Base -', 0.5),         # Turn 6
+        ('Base -', 0.5),         # Turn 7
+        ('Base -', 0.5),         # Turn 8
+        ('Base -', 0.5),         # Turn 9
+        # Move elbow to position 2 - exactly 40 steps
         ('Elbow -', 0.5),
     ] * 40 + [
         # Grip box
@@ -195,7 +227,7 @@ SEQUENCES = {
         ('Base +', 0.5),         # Return turn 9
     ],
 
-    'pick_from_back_2': [  # Pick from second back position (50 iterations)
+    'pick_from_back_3': [  # Pick from third back position (50 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -207,7 +239,7 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 2 - exactly 50 steps
+        # Move elbow to position 3 - exactly 50 steps
         ('Elbow -', 0.5),
     ] * 50 + [
         # Grip box
@@ -215,38 +247,6 @@ SEQUENCES = {
         # Return elbow - exactly 50 steps
         ('Elbow +', 0.5),        # Return elbow
     ] * 50 + [
-        # Return base to front - reverse of turn
-        ('Base +', 0.5),         # Return turn 1
-        ('Base +', 0.5),         # Return turn 2
-        ('Base +', 0.5),         # Return turn 3
-        ('Base +', 0.5),         # Return turn 4
-        ('Base +', 0.5),         # Return turn 5
-        ('Base +', 0.5),         # Return turn 6
-        ('Base +', 0.5),         # Return turn 7
-        ('Base +', 0.5),         # Return turn 8
-        ('Base +', 0.5),         # Return turn 9
-    ],
-
-    'pick_from_back_3': [  # Pick from third back position (60 iterations)
-        ('Enable Arm', 1.0),
-        # Turn to back - same as initial sequence
-        ('Base -', 0.5),         # Turn 1
-        ('Base -', 0.5),         # Turn 2
-        ('Base -', 0.5),         # Turn 3
-        ('Base -', 0.5),         # Turn 4
-        ('Base -', 0.5),         # Turn 5
-        ('Base -', 0.5),         # Turn 6
-        ('Base -', 0.5),         # Turn 7
-        ('Base -', 0.5),         # Turn 8
-        ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 3 - exactly 60 steps
-        ('Elbow -', 0.5),
-    ] * 60 + [
-        # Grip box
-        ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 60 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 60 + [
         # Return base to front - reverse of turn
         ('Base +', 0.5),         # Return turn 1
         ('Base +', 0.5),         # Return turn 2
