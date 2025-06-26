@@ -346,17 +346,6 @@ SEQUENCES = {
         # Enable navigation and move forward for 12 seconds
         ('Enable Motion', 1.0),    # Enable navigation motors
         ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Forward', 1.0),          # Move forward for 1 second
         ('Stop', 1.0),             # Stop movement
         ('Disable Motion', 1.0),   # Disable navigation motors
         
