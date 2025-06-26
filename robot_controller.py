@@ -22,6 +22,19 @@ BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
 CAMERA_DEVICE = os.environ.get('CAMERA_DEVICE', '0')  # Default to camera index 0
+# Standard box dimensions in cm
+BOX_WIDTH = 6.5
+BOX_HEIGHT = 3.5
+BOX_DEPTH = 9.0
+# QR code size in cm (assuming it covers one face of the box)
+QR_CODE_REAL_WIDTH = 6.5  # cm
+QR_CODE_REAL_HEIGHT = 3.5  # cm
+# Focal length will be calibrated during runtime
+FOCAL_LENGTH = None
+# Known distance for calibration (in cm)
+KNOWN_DISTANCE = 30.0  # cm
+# Known width in pixels at the known distance (will be calibrated)
+KNOWN_WIDTH_PIXELS = None
 
 # Commands for the ESP32 arm
 COMMANDS = {
@@ -204,6 +217,33 @@ def release_camera():
         camera.release()
         camera = None
 
+def calculate_distance(pixel_width):
+    """Calculate distance to QR code based on apparent size"""
+    global FOCAL_LENGTH, KNOWN_WIDTH_PIXELS
+    
+    # If focal length is not calibrated yet, use a default approximation
+    if FOCAL_LENGTH is None:
+        # Approximate focal length based on camera resolution
+        # This is a rough estimate and should be calibrated properly
+        FOCAL_LENGTH = 650  # Default value for 640x480 resolution
+        print(f"Using default focal length: {FOCAL_LENGTH}")
+    
+    # Calculate distance using the formula: distance = (real_width * focal_length) / pixel_width
+    distance = (QR_CODE_REAL_WIDTH * FOCAL_LENGTH) / pixel_width
+    return distance
+
+def calibrate_camera(pixel_width, known_distance=KNOWN_DISTANCE):
+    """Calibrate camera focal length using a known distance and QR code size"""
+    global FOCAL_LENGTH, KNOWN_WIDTH_PIXELS
+    
+    # Calculate focal length using the formula: F = (P * D) / W
+    # Where F is focal length, P is pixel width, D is known distance, W is real width
+    FOCAL_LENGTH = (pixel_width * known_distance) / QR_CODE_REAL_WIDTH
+    KNOWN_WIDTH_PIXELS = pixel_width
+    
+    print(f"Camera calibrated: Focal length = {FOCAL_LENGTH}, Known width in pixels = {KNOWN_WIDTH_PIXELS}")
+    return FOCAL_LENGTH
+
 def scan_qr_codes():
     """Thread function to continuously scan for QR codes"""
     global camera_running, last_qr_data, last_qr_bbox
@@ -227,8 +267,12 @@ def scan_qr_codes():
                 if data != last_qr_data:
                     print(f"QR Code detected: {data}")
                     last_qr_data = data
+                    
                     # Process the QR code data in the main thread
-                    process_qr_code(data)
+                    # We'll use threading to avoid blocking the camera thread
+                    processing_thread = threading.Thread(target=process_qr_code, args=(data,))
+                    processing_thread.daemon = True
+                    processing_thread.start()
                 
                 # Store bounding box for visualization even if it's the same code
                 if bbox is not None and len(bbox) > 0:
@@ -244,17 +288,25 @@ def scan_qr_codes():
                         width = max(x_coords) - x
                         height = max(y_coords) - y
                         
+                        # Calculate distance based on QR code width
+                        distance = calculate_distance(width)
+                        
                         last_qr_bbox = {
                             "x": int(x),
                             "y": int(y),
                             "width": int(width),
-                            "height": int(height)
+                            "height": int(height),
+                            "distance": round(distance, 2)  # Distance in cm
                         }
                         
                         # Draw bounding box on the frame for debugging
                         cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
-                        cv2.putText(frame, data, (int(x), int(y) - 10), 
+                        cv2.putText(frame, f"{data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                        
+                        # If this is the first detection, try to calibrate the camera
+                        if FOCAL_LENGTH is None and data.startswith('BOX_'):
+                            calibrate_camera(width)
             else:
                 # Clear bounding box if no QR code is detected
                 last_qr_bbox = None
@@ -308,56 +360,60 @@ def update_robot_state(status=None, box_id=None, position=None, action=None, err
 
 def process_qr_code(qr_data):
     """Process QR code data and trigger appropriate actions"""
-    if qr_data.startswith('BOX_'):
-        # Extract box information
-        parts = qr_data.split('_')
-        box_id = parts[1]
-        
-        # Connect to database to get box information
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM boxes WHERE id = ?", (box_id,))
-        box_info = cursor.fetchone()
-        
-        if box_info:
-            # Update box status to "processing"
-            cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("processing", box_id))
-            conn.commit()
+    try:
+        if qr_data.startswith('BOX_'):
+            # Extract box information
+            parts = qr_data.split('_')
+            box_id = parts[1]
             
-            # Update robot state
-            update_robot_state(status="picking", action=f"Picking up box: {box_id}")
+            # Connect to database to get box information
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM boxes WHERE id = ?", (box_id,))
+            box_info = cursor.fetchone()
             
-            # Select appropriate sequence based on box properties
-            sequence = select_sequence_for_box(box_info)
-            
-            # Execute the selected sequence
-            print(f"Executing sequence '{sequence}' for box {box_id}")
-            result = execute_sequence(sequence)
-            
-            # Update robot state to indicate carrying the box
-            update_robot_state(status="carrying", carrying_box=box_id)
-            
-            # Update box status to "delivered"
-            cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("delivered", box_id))
-            conn.commit()
-            
-            print(f"Box {box_id} processed: {result}")
+            if box_info:
+                # Update box status to "processing"
+                cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("processing", box_id))
+                conn.commit()
+                
+                # Update robot state
+                update_robot_state(status="picking", action=f"Picking up box: {box_id}")
+                
+                # Select appropriate sequence based on box properties
+                sequence = select_sequence_for_box(box_info)
+                
+                # Execute the selected sequence - ensure this runs even if there are errors elsewhere
+                print(f"Executing sequence '{sequence}' for box {box_id}")
+                result = execute_sequence(sequence)
+                
+                # Update robot state to indicate carrying the box
+                update_robot_state(status="carrying", carrying_box=box_id)
+                
+                # Update box status to "delivered"
+                cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("delivered", box_id))
+                conn.commit()
+                
+                print(f"Box {box_id} processed: {result}")
+            else:
+                print(f"Unknown box ID: {box_id}")
+                update_robot_state(error=f"Unknown box ID: {box_id}")
+                
+            conn.close()
+        elif qr_data.startswith('SHELF_'):
+            print(f"Detected shelf: {qr_data}")
+            update_robot_state(position=qr_data)
+            # Could implement shelf-specific actions here
+        elif qr_data.startswith('FLOOR_'):
+            print(f"Detected floor marker: {qr_data}")
+            update_robot_state(position=qr_data)
+            # Could implement navigation actions here
         else:
-            print(f"Unknown box ID: {box_id}")
-            update_robot_state(error=f"Unknown box ID: {box_id}")
-            
-        conn.close()
-    elif qr_data.startswith('SHELF_'):
-        print(f"Detected shelf: {qr_data}")
-        update_robot_state(position=qr_data)
-        # Could implement shelf-specific actions here
-    elif qr_data.startswith('FLOOR_'):
-        print(f"Detected floor marker: {qr_data}")
-        update_robot_state(position=qr_data)
-        # Could implement navigation actions here
-    else:
-        print(f"Unknown QR code format: {qr_data}")
-        update_robot_state(error=f"Unknown QR code format: {qr_data}")
+            print(f"Unknown QR code format: {qr_data}")
+            update_robot_state(error=f"Unknown QR code format: {qr_data}")
+    except Exception as e:
+        print(f"Error processing QR code: {str(e)}")
+        update_robot_state(error=f"QR processing error: {str(e)}")
 
 def send_command(cmd_label):
     """Send a command to the ESP32"""
@@ -547,6 +603,27 @@ AUTO_HTML = """
             });
         }
         
+        function calibrateCamera() {
+            const knownDistance = document.getElementById('known_distance').value;
+            if (!knownDistance) {
+                alert('Please enter a known distance in cm');
+                return;
+            }
+            
+            fetch('/calibrate_camera', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ known_distance: parseFloat(knownDistance) }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').innerText = data.status;
+                alert(data.status);
+            });
+        }
+        
         function checkQrStatus() {
             fetch('/qr_status')
                 .then(response => response.json())
@@ -599,6 +676,10 @@ AUTO_HTML = """
                 <h3>Camera Configuration</h3>
                 <input type="text" id="camera_device" placeholder="Camera device (e.g., 0, 1, /dev/video0)">
                 <button onclick="setCamera()">Set Camera</button>
+                
+                <h3>Distance Calibration</h3>
+                <input type="number" id="known_distance" placeholder="Known distance (cm)">
+                <button onclick="calibrateCamera()">Calibrate</button>
             </div>
             <p id="status">Camera inactive</p>
         </div>
@@ -635,21 +716,28 @@ def generate_camera_frames():
                         # Draw green polygon around QR code
                         cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
                         
-                        # Add text label
+                        # Calculate distance
                         x_coords = [p[0] for p in points]
                         y_coords = [p[1] for p in points]
                         x = min(x_coords)
                         y = min(y_coords)
+                        width = max(x_coords) - x
+                        height = max(y_coords) - y
+                        
+                        distance = calculate_distance(width)
+                        
+                        # Add text label with distance
+                        text = f"{data} - {round(distance, 2)}cm"
                         
                         # Draw background for text
-                        text_size = cv2.getTextSize(data, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
                         cv2.rectangle(frame, 
                                      (int(x), int(y) - text_size[1] - 10),
                                      (int(x) + text_size[0], int(y)),
                                      (0, 255, 0), -1)
                         
                         # Draw text
-                        cv2.putText(frame, data, (int(x), int(y) - 5), 
+                        cv2.putText(frame, text, (int(x), int(y) - 5), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
             except Exception as e:
                 # Just continue if QR detection fails
@@ -729,8 +817,12 @@ def video_feed():
 @app.route('/qr_status')
 def qr_status():
     """Return the last detected QR code data"""
+    distance_info = ""
+    if last_qr_bbox and "distance" in last_qr_bbox:
+        distance_info = f" (Distance: {last_qr_bbox['distance']} cm)"
+    
     return jsonify({
-        "qr_data": last_qr_data,
+        "qr_data": last_qr_data + distance_info if last_qr_data else None,
         "qr_bbox": last_qr_bbox
     })
 
@@ -901,6 +993,18 @@ def status_page():
     </html>
     """
     return html
+
+@app.route('/calibrate_camera', methods=['POST'])
+def api_calibrate_camera():
+    """API endpoint to manually calibrate camera with known distance"""
+    data = request.json
+    known_distance = data.get('known_distance', KNOWN_DISTANCE)
+    
+    if last_qr_bbox and "width" in last_qr_bbox:
+        focal_length = calibrate_camera(last_qr_bbox["width"], known_distance)
+        return jsonify({"status": "Camera calibrated", "focal_length": focal_length})
+    else:
+        return jsonify({"status": "No QR code detected for calibration"})
 
 def cleanup():
     """Clean up resources before exit"""
