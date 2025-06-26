@@ -52,20 +52,35 @@ COMMANDS = {
 
 # Predefined sequences for common tasks
 SEQUENCES = {
-    'pick_up_box': [
+    'standard_sequence': [
         ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base +', 0.5),         # First base movement 
-        ('Base +', 0.5),         # Second base movement
-        ('Base +', 0.5),         # Third base movement - position base properly
-        ('Shoulder +', 0.5),     # Lower arm toward box
-        ('Shoulder +', 0.5),     # Lower arm more
-        ('Elbow -', 0.5),        # Extend arm
-        ('Elbow -', 0.5),        # Extend arm further
-        ('Gripper Open', 1.0),   # Open gripper - single command
-        ('Elbow +', 0.5),        # Move down to box
+        ('Base -', 0.5),         # First base movement 
+        ('Base -', 0.5),         # Second base movement
+        ('Base -', 0.5),  
+        ('Gripper Open', 1.0), 
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box
+        ('Shoulder -', 0.5),     # Lower arm toward box       # Extend arm further     # Move down to box
         ('Gripper Close', 1.0),  # Grip box - single command
-        ('Shoulder -', 0.5),     # Start lifting box
-        ('Shoulder -', 0.5),     # Continue lifting box
+        ('Shoulder +', 0.5),     # Start lifting box
+        ('Shoulder +', 0.5),     # Continue lifting box
+        ('Shoulder +', 0.5),     # Start lifting box
+        ('Shoulder +', 0.5),     # Continue lifting box
+        ('Shoulder +', 0.5),     # Start lifting box
+        ('Shoulder +', 0.5), 
+        ('Shoulder +', 0.5),     # Start lifting box
+        ('Shoulder +', 0.5),     # Continue lifting box
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),      # Start lifting box
         ('Base -', 0.5),         # First turn toward back
         ('Base -', 0.5),         # Second turn
         ('Base -', 0.5),         # Complete turn to robot back
@@ -76,59 +91,6 @@ SEQUENCES = {
         ('Base +', 0.5),         # Start returning to position
         ('Base +', 0.5),         # Continue returning
         ('Base +', 0.5),         # Complete return to starting position
-        ('Disable Arm', 0.5),    # Disable arm when done
-    ],
-    
-    # Sequence for light boxes (under 1kg)
-    'light_box': [
-        ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base +', 0.5),         # First base movement
-        ('Base +', 0.5),         # Second base movement
-        ('Shoulder +', 0.5),     # Lower arm toward box
-        ('Elbow -', 0.5),        # Extend arm
-        ('Elbow -', 0.5),        # Extend further
-        ('Gripper Open', 1.0),   # Open gripper - single command
-        ('Elbow +', 0.5),        # Move down to box
-        ('Gripper Close', 1.0),  # Grip box - single command
-        ('Shoulder -', 0.5),     # Start lifting light box
-        ('Shoulder -', 0.5),     # Complete lifting
-        ('Base -', 0.5),         # First turn
-        ('Base -', 0.5),         # Complete turn
-        ('Elbow +', 0.5),        # Position over storage area
-        ('Gripper Open', 1.0),   # Release box - single command
-        ('Shoulder +', 0.5),     # Move away from box
-        ('Base +', 0.5),         # Start returning
-        ('Base +', 0.5),         # Complete return to starting position
-        ('Disable Arm', 0.5),    # Disable arm when done
-    ],
-    
-    # Sequence for heavy boxes (over 2kg)
-    'heavy_box': [
-        ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base +', 0.7),         # First careful positioning
-        ('Base +', 0.7),         # Second careful positioning
-        ('Base +', 0.7),         # Third careful positioning
-        ('Shoulder +', 0.7),     # First shoulder movement for stability
-        ('Shoulder +', 0.7),     # More shoulder movement for stability
-        ('Elbow -', 0.7),        # First slow extension
-        ('Elbow -', 0.7),        # Second slow extension
-        ('Elbow -', 0.7),        # Third slow extension for heavy box
-        ('Gripper Open', 1.0),   # Open gripper - single command
-        ('Elbow +', 0.7),        # Precise positioning
-        ('Gripper Close', 1.5),  # Stronger grip for heavy boxes - single command but longer delay
-        ('Shoulder -', 0.7),     # Start slow lift for heavy boxes
-        ('Shoulder -', 0.7),     # Continue slow lift
-        ('Base -', 0.7),         # First slow rotation with weight
-        ('Base -', 0.7),         # Second slow rotation
-        ('Base -', 0.7),         # Final slow rotation with weight
-        ('Elbow +', 0.7),        # First positioning adjustment
-        ('Elbow +', 0.7),        # Final positioning adjustment
-        ('Gripper Open', 1.0),   # Release box - single command
-        ('Shoulder +', 0.7),     # First movement for more clearance
-        ('Shoulder +', 0.7),     # Additional clearance after release
-        ('Base +', 0.7),         # First return movement
-        ('Base +', 0.7),         # Second return movement
-        ('Base +', 0.7),         # Final return movement
         ('Disable Arm', 0.5),    # Disable arm when done
     ],
     
@@ -263,79 +225,81 @@ def scan_qr_codes():
         try:
             data, bbox, _ = qr_detector.detectAndDecode(frame)
             if data:
-                # Only process if it's a new QR code or we haven't processed this one yet
-                if data != last_qr_data:
-                    print(f"QR Code detected: {data}")
-                    last_qr_data = data
-                    
-                    # Process the QR code data in the main thread
-                    # We'll use threading to avoid blocking the camera thread
-                    processing_thread = threading.Thread(target=process_qr_code, args=(data,))
-                    processing_thread.daemon = True
-                    processing_thread.start()
+                print(f"QR Code detected: {data}")
+                # Always update last_qr_data and process it
+                last_qr_data = data
                 
-                # Store bounding box for visualization even if it's the same code
-                if bbox is not None and len(bbox) > 0:
-                    # Convert bbox to a more usable format for the web interface
-                    # OpenCV returns bbox as a 3D array with 4 points (corners)
-                    points = bbox[0]
-                    if len(points) == 4:
-                        # Calculate the bounding rectangle that contains all points
-                        x_coords = [p[0] for p in points]
-                        y_coords = [p[1] for p in points]
-                        x = min(x_coords)
-                        y = min(y_coords)
-                        width = max(x_coords) - x
-                        height = max(y_coords) - y
-                        
-                        # Calculate distance based on QR code width
-                        distance = calculate_distance(width)
-                        
-                        last_qr_bbox = {
-                            "x": int(x),
-                            "y": int(y),
-                            "width": int(width),
-                            "height": int(height),
-                            "distance": round(distance, 2)  # Distance in cm
-                        }
-                        
-                        # Draw bounding box on the frame for debugging
-                        cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
-                        cv2.putText(frame, f"{data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
+                # Process the QR code data in the main thread
+                # We'll use threading to avoid blocking the camera thread
+                processing_thread = threading.Thread(target=process_qr_code, args=(data,))
+                processing_thread.daemon = True
+                processing_thread.start()
+            
+            # Even if no data is decoded, check if a QR code is detected visually
+            # This is a workaround for cases where the QR code is seen but not decoded
+            if bbox is not None and len(bbox) > 0:
+                # Convert bbox to a more usable format for the web interface
+                # OpenCV returns bbox as a 3D array with 4 points (corners)
+                points = bbox[0]
+                if len(points) == 4:
+                    # Calculate the bounding rectangle that contains all points
+                    x_coords = [p[0] for p in points]
+                    y_coords = [p[1] for p in points]
+                    x = min(x_coords)
+                    y = min(y_coords)
+                    width = max(x_coords) - x
+                    height = max(y_coords) - y
+                    
+                    # Calculate distance based on QR code width
+                    distance = calculate_distance(width)
+                    
+                    last_qr_bbox = {
+                        "x": int(x),
+                        "y": int(y),
+                        "width": int(width),
+                        "height": int(height),
+                        "distance": round(distance, 2)  # Distance in cm
+                    }
+                    
+                    # Draw bounding box on the frame for debugging
+                    cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
+                    
+                    # If data is empty but we have a bounding box, try to manually trigger
+                    # the robot for testing purposes
+                    if not data and last_qr_data is None:
+                        # Generate a test QR data for the detected box
+                        test_data = "BOX_TEST"
+                        cv2.putText(frame, f"{test_data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                         
-                        # If this is the first detection, try to calibrate the camera
-                        if FOCAL_LENGTH is None and data.startswith('BOX_'):
-                            calibrate_camera(width)
+                        # Only process if we haven't processed a box recently
+                        if robot_state["status"] == "idle":
+                            print("QR code detected visually but not decoded, using test data")
+                            last_qr_data = test_data
+                            processing_thread = threading.Thread(target=process_qr_code, args=(test_data,))
+                            processing_thread.daemon = True
+                            processing_thread.start()
+                    else:
+                        # Normal case with data
+                        cv2.putText(frame, f"{data or 'Unknown'} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    
+                    # If this is the first detection, try to calibrate the camera
+                    if FOCAL_LENGTH is None:
+                        calibrate_camera(width)
             else:
-                # Clear bounding box if no QR code is detected
-                last_qr_bbox = None
+                # No QR code detected visually
+                pass
                 
         except Exception as e:
             print(f"QR detection error: {e}")
-            last_qr_bbox = None
             
         time.sleep(0.1)  # Small delay to reduce CPU usage
 
 def select_sequence_for_box(box_info):
     """Select appropriate sequence based on box properties"""
-    # Extract box properties
-    # Assuming box_info structure: (id, status, source, dest_shelf, dest_section, pickup_time, delivery_time, weight, attempts, created_time)
-    box_id = box_info[0]
-    weight = box_info[7] if box_info[7] is not None else 1.0
-    destination = box_info[3] if box_info[3] is not None else "SHELF_A"
-    
-    print(f"Processing box {box_id} with weight {weight}kg to {destination}")
-    
-    # Select sequence based on weight
-    if weight < 1.0:
-        sequence = 'light_box'
-    elif weight > 2.0:
-        sequence = 'heavy_box'
-    else:
-        sequence = 'pick_up_box'
-    
-    return sequence
+    # Always use the standard sequence regardless of box properties
+    return 'standard_sequence'
 
 def update_robot_state(status=None, box_id=None, position=None, action=None, error=None):
     """Update the robot's current state"""
@@ -361,59 +325,72 @@ def update_robot_state(status=None, box_id=None, position=None, action=None, err
 def process_qr_code(qr_data):
     """Process QR code data and trigger appropriate actions"""
     try:
-        if qr_data.startswith('BOX_'):
+        print(f"Processing QR code: {qr_data}")
+        
+        # If the robot is already busy, don't process another QR code
+        if robot_state["status"] != "idle":
+            print(f"Robot is busy ({robot_state['status']}), ignoring QR code")
+            return
+            
+        if qr_data.startswith('BOX_') or qr_data == "BOX_TEST":
             # Extract box information
-            parts = qr_data.split('_')
-            box_id = parts[1]
-            
-            # Connect to database to get box information
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM boxes WHERE id = ?", (box_id,))
-            box_info = cursor.fetchone()
-            
-            if box_info:
-                # Update box status to "processing"
-                cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("processing", box_id))
-                conn.commit()
-                
-                # Update robot state
-                update_robot_state(status="picking", action=f"Picking up box: {box_id}")
-                
-                # Select appropriate sequence based on box properties
-                sequence = select_sequence_for_box(box_info)
-                
-                # Execute the selected sequence - ensure this runs even if there are errors elsewhere
-                print(f"Executing sequence '{sequence}' for box {box_id}")
-                result = execute_sequence(sequence)
-                
-                # Update robot state to indicate carrying the box
-                update_robot_state(status="carrying", carrying_box=box_id)
-                
-                # Update box status to "delivered"
-                cursor.execute("UPDATE boxes SET status = ? WHERE id = ?", ("delivered", box_id))
-                conn.commit()
-                
-                print(f"Box {box_id} processed: {result}")
+            if qr_data == "BOX_TEST":
+                box_id = "TEST"
+                # Create a dummy box_info for testing
+                box_info = ("TEST", "pending", "source", "SHELF_A", "1", None, None, 1.0, 0, None)
             else:
-                print(f"Unknown box ID: {box_id}")
-                update_robot_state(error=f"Unknown box ID: {box_id}")
+                parts = qr_data.split('_')
+                box_id = parts[1]
                 
-            conn.close()
+                # Connect to database to get box information
+                try:
+                    conn = sqlite3.connect(DB_PATH)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT * FROM boxes WHERE id = ?", (box_id,))
+                    box_info = cursor.fetchone()
+                    conn.close()
+                except Exception as db_error:
+                    print(f"Database error: {db_error}")
+                    # Create a dummy box_info if database fails
+                    box_info = (box_id, "pending", "source", "SHELF_A", "1", None, None, 1.0, 0, None)
+            
+            # Update robot state
+            update_robot_state(status="picking", action=f"Picking up box: {box_id}")
+            
+            # Select the standard sequence
+            sequence = 'standard_sequence'
+            
+            # Execute the selected sequence - ensure this runs even if there are errors elsewhere
+            print(f"Executing sequence '{sequence}' for box {box_id}")
+            result = execute_sequence(sequence)
+            
+            # Update robot state to indicate carrying the box
+            update_robot_state(status="carrying", carrying_box=box_id)
+            
+            # Update robot state to idle after completing the sequence
+            update_robot_state(status="idle", action=f"Completed processing box: {box_id}")
+            
+            print(f"Box {box_id} processed: {result}")
+            
         elif qr_data.startswith('SHELF_'):
             print(f"Detected shelf: {qr_data}")
             update_robot_state(position=qr_data)
             # Could implement shelf-specific actions here
+            
         elif qr_data.startswith('FLOOR_'):
             print(f"Detected floor marker: {qr_data}")
             update_robot_state(position=qr_data)
             # Could implement navigation actions here
+            
         else:
             print(f"Unknown QR code format: {qr_data}")
             update_robot_state(error=f"Unknown QR code format: {qr_data}")
+            
     except Exception as e:
         print(f"Error processing QR code: {str(e)}")
         update_robot_state(error=f"QR processing error: {str(e)}")
+        # Reset to idle state after error
+        update_robot_state(status="idle")
 
 def send_command(cmd_label):
     """Send a command to the ESP32"""
@@ -855,6 +832,16 @@ def api_execute_sequence(sequence_name):
     result = execute_sequence(sequence_name)
     return jsonify({"result": result})
 
+@app.route('/force_sequence/<sequence_name>')
+def force_sequence(sequence_name):
+    """Force execution of a sequence for testing purposes"""
+    if sequence_name not in SEQUENCES:
+        return jsonify({"error": f"Unknown sequence: {sequence_name}"})
+    
+    # Execute the sequence
+    result = execute_sequence(sequence_name)
+    return jsonify({"result": result})
+
 @app.route('/manual_sequence')
 def manual_sequence_page():
     """Page for manually triggering automation sequences"""
@@ -872,6 +859,7 @@ def manual_sequence_page():
             button {{ width: 200px; height: 50px; margin: 10px; font-size: 18px; }}
             .back-button {{ background-color: #f0f0f0; }}
             .result {{ margin: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }}
+            .emergency {{ background-color: #ff6666; color: white; font-weight: bold; }}
         </style>
         <script>
             function runSequence(name) {{
@@ -882,6 +870,17 @@ def manual_sequence_page():
                         document.getElementById('status').innerText = data.result;
                     }});
             }}
+            
+            function forceSequence(name) {{
+                if (confirm("Are you sure you want to force execution of " + name + "?")) {{
+                    document.getElementById('status').innerText = "Forcing sequence: " + name;
+                    fetch('/force_sequence/' + name)
+                        .then(response => response.json())
+                        .then(data => {{
+                            document.getElementById('status').innerText = data.result || data.error;
+                        }});
+                }}
+            }}
         </script>
     </head>
     <body>
@@ -891,6 +890,13 @@ def manual_sequence_page():
         <div>
             <h2>Available Sequences</h2>
             {sequences_html}
+        </div>
+        
+        <div>
+            <h2>Force Execution (Emergency)</h2>
+            <p>Use these buttons to force sequence execution regardless of robot state</p>
+            <button class="emergency" onclick="forceSequence('standard_sequence')">Force Standard Sequence</button><br>
+            <button class="emergency" onclick="forceSequence('home_position')">Force Home Position</button>
         </div>
         
         <div class="result">
