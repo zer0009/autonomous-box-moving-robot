@@ -163,7 +163,7 @@ SEQUENCES = {
         ('Base +', 0.5), 
         ('Base +', 0.5), 
         ('Base +', 0.5), 
-        ('Base +', 0.5)
+        ('Base +', 0.5),
         # Only disable the arm, not the entire robot
         ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
     ],
