@@ -68,158 +68,207 @@ NAV_COMMANDS = {
 
 # Predefined sequences for common tasks
 SEQUENCES = {
-    'standard_sequence': [
+    'pick_and_store_back': [
         ('Enable Arm', 1.0),     # Enable the arm first
         ('Base -', 0.5),         # First base movement 
         ('Base -', 0.5),         # Second base movement
         ('Base -', 0.5),  
         ('Gripper Open', 1.0), 
         ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     # Lower arm toward box       # Extend arm further     # Move down to box
-        ('Gripper Close', 1.0),  # Grip box - single command
-        ('Shoulder +', 0.5),     # Start lifting box
-        ('Shoulder +', 0.5),     # Continue lifting box
-        ('Shoulder +', 0.5),     # Start lifting box
-        ('Shoulder +', 0.5),     # Continue lifting box
-        ('Shoulder +', 0.5),     # Start lifting box
-        ('Shoulder +', 0.5), 
-        ('Shoulder +', 0.5),     # Start lifting box
-        ('Shoulder +', 0.5),     # Continue lifting box
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),      # Start lifting box
-        ('Base -', 0.5),         # First turn toward back
-        ('Base -', 0.5),         # Second turn
-        ('Base -', 0.5),         # Complete turn to robot back
-        ('Base -', 0.5),         # First turn toward back
-        ('Base -', 0.5),         # Second turn
-        ('Base -', 0.5), 
-        ('Base -', 0.5),         # First turn toward back
-        ('Base -', 0.5),         # Second turn
-        ('Base -', 0.5),
-        ('Base -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5),        # Position more precisely
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5),        # Position more precisely
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5),        # Position over storage area
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Elbow -', 0.5), 
-        ('Shoulder +', 0.5),  
-        ('Shoulder +', 0.5),  
-        ('Shoulder +', 0.5),  
-        ('Shoulder +', 0.5),  
-        ('Shoulder +', 0.5),  
-        ('Shoulder +', 0.5),  
-        ('Base +', 0.5),         # Start returning to position
-        ('Base +', 0.5),         # Continue returning
-        ('Base +', 0.5),  
-        ('Gripper Open', 1.0),   # Release box - single command
-        
-        # Return to home position (inverted sequence)
-        ('Shoulder -', 0.5),     # Lower shoulder back to neutral position
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        
-        # Return base to original position
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        
-        # Return elbow to original position
-        ('Elbow +', 0.5),        # Retract arm
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Disable Arm', 0.5),    # Disable arm when done
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     
+        ('Shoulder -', 0.5),     # Complete lowering
+        ('Gripper Close', 1.0),  # Grip box
+        ('Shoulder +', 0.5),     # Lift box
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     
+        ('Shoulder +', 0.5),     # Complete lifting
+        ('Base -', 0.5),         # Turn to back
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         
+        ('Base -', 0.5),         # Complete turn to back
     ],
-    
-    # Return to home position
-    'home_position': [
-        ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base +', 0.5),         # First base centering movement
-        ('Base +', 0.5),         # Second base centering movement
-        ('Base +', 0.5),         # Complete base centering
-        ('Shoulder -', 0.5),     # First movement to raise arm
-        ('Shoulder -', 0.5),     # Complete raising arm
-        ('Elbow +', 0.5),        # First movement to fold arm
-        ('Elbow +', 0.5),        # Complete folding arm
-        ('Gripper Open', 1.0),   # Open gripper - single command
-        ('Disable Arm', 0.5),    # Disable arm when done
+
+    'store_back_position_1': [  # 30 Elbow - iterations
+        ('Elbow -', 0.5),
+    ] * 30 + [
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 30,
+
+    'store_back_position_2': [  # 40 Elbow - iterations
+        ('Elbow -', 0.5),
+    ] * 40 + [
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 40,
+
+    'store_back_position_3': [  # 50 Elbow - iterations
+        ('Elbow -', 0.5),
+    ] * 50 + [
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 50,
+
+    'return_to_home': [
+        ('Base +', 0.5),         # Return base to center
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder -', 0.5),     # Lower shoulder to neutral
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Disable Arm', 0.5),    # Disable arm
+    ],
+
+    'pick_from_back_1': [  # Pick from first back position
+        ('Enable Arm', 1.0),
+        ('Base -', 0.5),         # Turn to back
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Elbow -', 0.5),
+    ] * 30 + [
+        ('Gripper Close', 1.0),  # Grip box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 30,
+
+    'pick_from_back_2': [  # Pick from second back position
+        ('Enable Arm', 1.0),
+        ('Base -', 0.5),         # Turn to back
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Elbow -', 0.5),
+    ] * 40 + [
+        ('Gripper Close', 1.0),  # Grip box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 40,
+
+    'pick_from_back_3': [  # Pick from third back position
+        ('Enable Arm', 1.0),
+        ('Base -', 0.5),         # Turn to back
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Base -', 0.5),
+        ('Elbow -', 0.5),
+    ] * 50 + [
+        ('Gripper Close', 1.0),  # Grip box
+        ('Elbow +', 0.5),        # Return elbow
+    ] * 50,
+
+    'place_on_shelf_a': [
+        ('Base +', 0.5),         # Turn to shelf A
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder -', 0.5),     # Position for shelf A
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return to neutral
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Disable Arm', 0.5),
+    ],
+
+    'place_on_shelf_b': [
+        ('Base +', 0.5),         # Turn to shelf B
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder -', 0.5),     # Position for shelf B
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return to neutral
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Disable Arm', 0.5),
+    ],
+
+    'place_on_shelf_c': [
+        ('Base +', 0.5),         # Turn to shelf C
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Base +', 0.5),
+        ('Shoulder -', 0.5),     # Position for shelf C
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Shoulder -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Elbow -', 0.5),
+        ('Gripper Open', 1.0),   # Release box
+        ('Elbow +', 0.5),        # Return to neutral
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Elbow +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Shoulder +', 0.5),
+        ('Disable Arm', 0.5),
     ],
 }
 
@@ -527,33 +576,56 @@ def process_qr_code(qr_data):
                     # Create a dummy box_info if database fails
                     box_info = (box_id, "pending", "source", "SHELF_A", "1", None, None, 1.0, 0, None)
             
-            # Update robot state
+            # Step 1: Pick up the box and move to back
             update_robot_state(status="picking", action=f"Picking up box: {box_id}")
+            execute_sequence('pick_and_store_back')
             
-            # Select the standard sequence
-            sequence = 'standard_sequence'
+            # Determine which back position to use based on available slots
+            # For now, using a simple round-robin approach
+            back_position = (int(box_id) % 3) + 1 if box_id.isdigit() else 1
+            back_sequence = f'store_back_position_{back_position}'
             
-            # Execute the selected sequence - ensure this runs even if there are errors elsewhere
-            print(f"Executing sequence '{sequence}' for box {box_id}")
-            result = execute_sequence(sequence)
+            # Store the box at the selected back position
+            update_robot_state(status="storing", action=f"Storing box at back position {back_position}")
+            execute_sequence(back_sequence)
             
-            # Update robot state to indicate carrying the box
-            update_robot_state(status="carrying", carrying_box=box_id)
+            # Return arm to home position
+            update_robot_state(status="homing", action="Returning to home position")
+            execute_sequence('return_to_home')
             
-            # Update robot state to idle after completing the sequence
-            update_robot_state(status="idle", action=f"Completed processing box: {box_id}")
+            # Step 2: Navigate to destination
+            destination = box_info[3] if box_info and len(box_info) > 3 else "SHELF_A"
+            shelf_letter = destination[-1].upper() if destination.startswith("SHELF_") else "A"
             
-            print(f"Box {box_id} processed: {result}")
+            # Start navigation to shelf
+            navigate_to_shelf(destination, back_position, box_id)
             
         elif qr_data.startswith('SHELF_'):
             print(f"Detected shelf: {qr_data}")
+            # Update current position
             update_robot_state(position=qr_data)
-            # Could implement shelf-specific actions here
+            
+            # If we're in navigation mode, check if this is our target
+            if robot_state["status"] == "navigating":
+                target_shelf = robot_state.get("target_shelf")
+                if target_shelf and qr_data == target_shelf:
+                    print(f"Reached target shelf: {qr_data}")
+                    # Stop navigation
+                    send_nav_command("Stop")
+                    send_nav_command("Disable Motion")
+                    
+                    # Continue with box placement
+                    complete_shelf_placement()
+                else:
+                    # Not our target shelf, adjust navigation
+                    adjust_navigation(qr_data, target_shelf)
             
         elif qr_data.startswith('FLOOR_'):
             print(f"Detected floor marker: {qr_data}")
             update_robot_state(position=qr_data)
-            # Could implement navigation actions here
+            # Use floor markers for additional navigation reference
+            if robot_state["status"] == "navigating":
+                adjust_navigation(qr_data, robot_state.get("target_shelf"))
             
         else:
             print(f"Unknown QR code format: {qr_data}")
@@ -563,6 +635,102 @@ def process_qr_code(qr_data):
         print(f"Error processing QR code: {str(e)}")
         update_robot_state(error=f"QR processing error: {str(e)}")
         # Reset to idle state after error
+        update_robot_state(status="idle")
+
+def navigate_to_shelf(target_shelf, back_position, box_id):
+    """Handle navigation to target shelf with continuous feedback"""
+    print(f"Starting navigation to {target_shelf}")
+    
+    # Update robot state with navigation target
+    update_robot_state(
+        status="navigating",
+        action=f"Moving to {target_shelf}",
+        target_shelf=target_shelf,
+        back_position=back_position,
+        carrying_box=box_id
+    )
+    
+    # Enable navigation
+    send_nav_command("Enable Motion")
+    time.sleep(0.5)
+    
+    # Start moving forward
+    send_nav_command("Forward")
+    
+    # Navigation will continue until a shelf QR code is detected
+    # The process_qr_code function will handle detection and stopping
+
+def adjust_navigation(current_marker, target_shelf):
+    """Adjust navigation based on detected markers and IR feedback"""
+    if not target_shelf:
+        print("No target shelf set, cannot adjust navigation")
+        return
+        
+    # Get current IR correction value
+    ir_correction = robot_state.get("ir_correction", "0")
+    try:
+        correction_value = float(ir_correction)
+    except ValueError:
+        correction_value = 0
+    
+    # Parse shelf letters for position comparison
+    current_letter = current_marker[-1] if current_marker else None
+    target_letter = target_shelf[-1] if target_shelf else None
+    
+    if current_letter and target_letter:
+        if current_letter < target_letter:
+            # Need to go further
+            send_nav_command("Forward")
+        elif current_letter > target_letter:
+            # Went too far, need to back up
+            send_nav_command("Backward")
+            
+    # Apply IR correction
+    if correction_value > 1:
+        # Too far right, adjust left
+        send_nav_command("Left")
+    elif correction_value < -1:
+        # Too far left, adjust right
+        send_nav_command("Right")
+    
+    # Resume forward motion if we're not at the target
+    if current_marker != target_shelf:
+        send_nav_command("Forward")
+
+def complete_shelf_placement():
+    """Complete the box placement after reaching the target shelf"""
+    # Get stored state information
+    back_position = robot_state.get("back_position")
+    target_shelf = robot_state.get("target_shelf")
+    
+    if not (back_position and target_shelf):
+        print("Missing required state information for shelf placement")
+        update_robot_state(error="Missing state information")
+        return
+        
+    shelf_letter = target_shelf[-1].lower()
+    
+    try:
+        # Pick up box from back position
+        update_robot_state(status="retrieving", action=f"Retrieving box from back position {back_position}")
+        execute_sequence(f'pick_from_back_{back_position}')
+        
+        # Place on the correct shelf
+        update_robot_state(status="placing", action=f"Placing box on shelf {shelf_letter.upper()}")
+        execute_sequence(f'place_on_shelf_{shelf_letter}')
+        
+        # Reset state
+        update_robot_state(
+            status="idle",
+            action="Completed box placement",
+            target_shelf=None,
+            back_position=None,
+            carrying_box=None
+        )
+        
+    except Exception as e:
+        print(f"Error during shelf placement: {e}")
+        update_robot_state(error=f"Placement error: {str(e)}")
         update_robot_state(status="idle")
 
 def send_command(cmd_label):
