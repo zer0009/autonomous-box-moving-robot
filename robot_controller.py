@@ -61,7 +61,7 @@ NAV_COMMANDS = {
     'Right': 'd',
     'Rotate CW': 'q',
     'Rotate CCW': 'e',
-    'Stop': 'x',
+    'Stop': 'c',
     'Enable Motion': 'z',
     'Disable Motion': 'x'
 }
