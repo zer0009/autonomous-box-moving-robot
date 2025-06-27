@@ -15,6 +15,7 @@ from qr_code_generator import RobotQRGenerator
 import os
 import numpy as np
 from PIL import Image
+import json
 
 # Configuration
 ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32
@@ -66,400 +67,8 @@ NAV_COMMANDS = {
     'Disable Motion': 'x'
 }
 
-# Predefined sequences for common tasks
-SEQUENCES = {
-    'pick_and_store_back': [
-        ('Enable Arm', 1.0),     # Enable the arm first
-        ('Base -', 0.5),         # First base movement 
-        ('Base -', 0.5),         # Second base movement
-        ('Base -', 0.5),  
-        ('Gripper Open', 1.0), 
-        ('Shoulder -', 0.5),     # Lower arm toward box
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     
-        ('Shoulder -', 0.5),     # Complete lowering
-        ('Gripper Close', 1.0),  # Grip box
-        ('Shoulder +', 0.5),     # Lift box
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     
-        ('Shoulder +', 0.5),     # Complete lifting
-        ('Base -', 0.5),         # Turn to back
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),         
-        ('Base -', 0.5),  
-        ('Base -', 0.5),
-    ],
-
-    'store_back_position_1': [  # Position 1 sequence
-        # Move elbow to position 1 - exactly 38 steps down
-    ] + [('Elbow -', 0.5) for _ in range(38)] + [
-        ('Base +', 0.5),         # Reverse turn 1
-        ('Base +', 0.5),         # Reverse turn 2
-        ('Base +', 0.5),  
-        # Release box
-        ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 30 steps up
-    ] + [('Elbow +', 0.5) for _ in range(38)],
-
-    'store_back_position_2': [  # Position 2 sequence
-        # Move elbow to position 2 - exactly 48 steps down
-    ] + [('Elbow -', 0.5) for _ in range(48)] + [
-        # Release box
-        ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 40 steps up
-    ] + [('Elbow +', 0.5) for _ in range(48)],
-
-    'store_back_position_3': [  # Position 3 sequence
-        # Move elbow to position 3 - exactly 55 steps down
-    ] + [('Elbow -', 0.5) for _ in range(55)] + [
-        # Release box
-        ('Gripper Open', 1.0),   # Release box
-        # Return elbow exactly 50 steps up
-    ] + [('Elbow +', 0.5) for _ in range(55)],
-
-    'return_to_home': [
-        # Return base to center - exact reverse of turn to back
-        ('Base +', 0.5),         # Reverse turn 1
-        ('Base +', 0.5),         # Reverse turn 2
-        ('Base +', 0.5),         # Reverse turn 3
-        ('Base +', 0.5),         # Reverse turn 4
-        ('Base +', 0.5),         # Reverse turn 5
-        ('Base +', 0.5),         # Reverse turn 6
-        ('Base +', 0.5),         # Reverse turn 7
-        ('Base +', 0.5),         # Reverse turn 8
-        ('Base +', 0.5),         # Reverse turn 9
-        # Only disable the arm, not the entire robot
-        ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
-    ],
-
-    'pick_from_back_1': [  # Pick from first back position (30 iterations)
-        ('Enable Arm', 1.0),
-        # Turn to back - same as initial sequence
-        ('Base -', 0.5),         # Turn 1
-        ('Base -', 0.5),         # Turn 2
-        ('Base -', 0.5),         # Turn 3
-        ('Base -', 0.5),         # Turn 4
-        ('Base -', 0.5),         # Turn 5
-        ('Base -', 0.5),         # Turn 6
-        ('Base -', 0.5),         # Turn 7
-        ('Base -', 0.5),         # Turn 8
-        ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 1 - exactly 30 steps
-        ('Elbow -', 0.5),
-    ] * 30 + [
-        # Grip box
-        ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 30 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 30 + [
-        # Return base to front - reverse of turn
-        ('Base +', 0.5),         # Return turn 1
-        ('Base +', 0.5),         # Return turn 2
-        ('Base +', 0.5),         # Return turn 3
-        ('Base +', 0.5),         # Return turn 4
-        ('Base +', 0.5),         # Return turn 5
-        ('Base +', 0.5),         # Return turn 6
-        ('Base +', 0.5),         # Return turn 7
-        ('Base +', 0.5),         # Return turn 8
-        ('Base +', 0.5),         # Return turn 9
-    ],
-
-    'pick_from_back_2': [  # Pick from second back position (40 iterations)
-        ('Enable Arm', 1.0),
-        # Turn to back - same as initial sequence
-        ('Base -', 0.5),         # Turn 1
-        ('Base -', 0.5),         # Turn 2
-        ('Base -', 0.5),         # Turn 3
-        ('Base -', 0.5),         # Turn 4
-        ('Base -', 0.5),         # Turn 5
-        ('Base -', 0.5),         # Turn 6
-        ('Base -', 0.5),         # Turn 7
-        ('Base -', 0.5),         # Turn 8
-        ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 2 - exactly 40 steps
-        ('Elbow -', 0.5),
-    ] * 40 + [
-        # Grip box
-        ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 40 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 40 + [
-        # Return base to front - reverse of turn
-        ('Base +', 0.5),         # Return turn 1
-        ('Base +', 0.5),         # Return turn 2
-        ('Base +', 0.5),         # Return turn 3
-        ('Base +', 0.5),         # Return turn 4
-        ('Base +', 0.5),         # Return turn 5
-        ('Base +', 0.5),         # Return turn 6
-        ('Base +', 0.5),         # Return turn 7
-        ('Base +', 0.5),         # Return turn 8
-        ('Base +', 0.5),         # Return turn 9
-    ],
-
-    'pick_from_back_3': [  # Pick from third back position (50 iterations)
-        ('Enable Arm', 1.0),
-        # Turn to back - same as initial sequence
-        ('Base -', 0.5),         # Turn 1
-        ('Base -', 0.5),         # Turn 2
-        ('Base -', 0.5),         # Turn 3
-        ('Base -', 0.5),         # Turn 4
-        ('Base -', 0.5),         # Turn 5
-        ('Base -', 0.5),         # Turn 6
-        ('Base -', 0.5),         # Turn 7
-        ('Base -', 0.5),         # Turn 8
-        ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 3 - exactly 50 steps
-        ('Elbow -', 0.5),
-    ] * 50 + [
-        # Grip box
-        ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 50 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 50 + [
-        # Return base to front - reverse of turn
-        ('Base +', 0.5),         # Return turn 1
-        ('Base +', 0.5),         # Return turn 2
-        ('Base +', 0.5),         # Return turn 3
-        ('Base +', 0.5),         # Return turn 4
-        ('Base +', 0.5),         # Return turn 5
-        ('Base +', 0.5),         # Return turn 6
-        ('Base +', 0.5),         # Return turn 7
-        ('Base +', 0.5),         # Return turn 8
-        ('Base +', 0.5),         # Return turn 9
-    ],
-
-    'place_on_shelf_a': [
-        # Move to shelf A
-        ('Base +', 0.5),         # Turn to shelf A
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder -', 0.5),     # Position for shelf A
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Gripper Open', 1.0),   # Release box
-        # Return to neutral - exact reverse of positioning
-        ('Elbow +', 0.5),        # Return elbow
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Shoulder +', 0.5),     # Return shoulder
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        # Return base to center
-        ('Base -', 0.5),         # Return base
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Disable Arm', 0.5),
-    ],
-
-    'place_on_shelf_b': [
-        # Move to shelf B
-        ('Base +', 0.5),         # Turn to shelf B
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder -', 0.5),     # Position for shelf B
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Gripper Open', 1.0),   # Release box
-        # Return to neutral - exact reverse of positioning
-        ('Elbow +', 0.5),        # Return elbow
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Shoulder +', 0.5),     # Return shoulder
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        # Return base to center
-        ('Base -', 0.5),         # Return base
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Disable Arm', 0.5),
-    ],
-
-    'place_on_shelf_c': [
-        # Move to shelf C
-        ('Base +', 0.5),         # Turn to shelf C
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder -', 0.5),     # Position for shelf C
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Gripper Open', 1.0),   # Release box
-        # Return to neutral - exact reverse of positioning
-        ('Elbow +', 0.5),        # Return elbow
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Shoulder +', 0.5),     # Return shoulder
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        # Return base to center
-        ('Base -', 0.5),         # Return base
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Disable Arm', 0.5),
-    ],
-
-    'move_forward_and_place': [
-        # Enable navigation and move forward for 12 seconds
-        ('Enable Motion', 1.0),    # Enable navigation motors
-        ('Forward', 1.0),          # Move forward for 1 second
-        ('Stop', 1.0),             # Stop movement
-        ('Disable Motion', 1.0),   # Disable navigation motors
-        
-        # Now pick up box from back position 1 (using existing sequence)
-        ('Enable Arm', 1.0),
-        # Turn to back - same as initial sequence
-        ('Base -', 0.5),         # Turn 1
-        ('Base -', 0.5),         # Turn 2
-        ('Base -', 0.5),         # Turn 3
-        ('Base -', 0.5),         # Turn 4
-        ('Base -', 0.5),         # Turn 5
-        ('Base -', 0.5),         # Turn 6
-        ('Base -', 0.5),         # Turn 7
-        ('Base -', 0.5),         # Turn 8
-        ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 1 - exactly 30 steps
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        # Grip box
-        ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 30 steps
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        # Return base to front - reverse of turn
-        ('Base +', 0.5),         # Return turn 1
-        ('Base +', 0.5),         # Return turn 2
-        ('Base +', 0.5),         # Return turn 3
-        ('Base +', 0.5),         # Return turn 4
-        ('Base +', 0.5),         # Return turn 5
-        ('Base +', 0.5),         # Return turn 6
-        ('Base +', 0.5),         # Return turn 7
-        ('Base +', 0.5),         # Return turn 8
-        ('Base +', 0.5),         # Return turn 9
-        
-        # Now place on shelf A (using existing sequence)
-        # Move to shelf A
-        ('Base +', 0.5),         # Turn to shelf A
-        ('Base +', 0.5),
-        ('Base +', 0.5),
-        ('Shoulder -', 0.5),     # Position for shelf A
-        ('Shoulder -', 0.5),
-        ('Shoulder -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Gripper Open', 1.0),   # Release box
-        # Return to neutral - exact reverse of positioning
-        ('Elbow +', 0.5),        # Return elbow
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Shoulder +', 0.5),     # Return shoulder
-        ('Shoulder +', 0.5),
-        ('Shoulder +', 0.5),
-        # Return base to center
-        ('Base -', 0.5),         # Return base
-        ('Base -', 0.5),
-        ('Base -', 0.5),
-        ('Disable Arm', 0.5),    # Disable arm at the end
-    ],
-}
+# Change the SEQUENCES declaration to be an empty dictionary initially
+SEQUENCES = {}
 
 app = Flask(__name__)
 
@@ -1688,6 +1297,7 @@ MAIN_HTML = """
             <a href="/navigation"><button class="mode-button {% if mode == 'navigation' %}active-mode{% endif %}">Navigation Control</button></a>
             <a href="/auto"><button class="mode-button {% if mode == 'auto' %}active-mode{% endif %}">Automatic Mode</button></a>
             <a href="/manual_sequence"><button class="mode-button {% if mode == 'sequence' %}active-mode{% endif %}">Sequence Control</button></a>
+            <a href="/sequence_recorder"><button class="mode-button {% if mode == 'recorder' %}active-mode{% endif %}">Sequence Recorder</button></a>
             <a href="/status"><button class="mode-button {% if mode == 'status' %}active-mode{% endif %}">Robot Status</button></a>
             <a href="/sequence_analysis"><button class="mode-button {% if mode == 'analysis' %}active-mode{% endif %}">Sequence Analysis</button></a>
             <a href="/debug_serial"><button class="mode-button {% if mode == 'debug' %}active-mode{% endif %}">Debug Serial</button></a>
@@ -2598,6 +2208,821 @@ def send_test_ir():
         result = "Navigation serial port not available"
     
     return jsonify({"result": result})
+
+# Add these global variables after the other globals
+SEQUENCES_FILE = 'sequences.json'
+recording_commands = []
+is_recording = False
+
+# Add this function after debug_serial_connections()
+def save_sequences_to_file():
+    """Save all sequences to a JSON file"""
+    try:
+        with open(SEQUENCES_FILE, 'w') as f:
+            json.dump(SEQUENCES, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving sequences: {e}")
+        return False
+
+def load_sequences_from_file():
+    """Load sequences from JSON file if it exists, otherwise initialize with defaults"""
+    global SEQUENCES
+    
+    # Define default sequences that will be used if no JSON file exists
+    default_sequences = {
+        'pick_and_store_back': [
+            ('Enable Arm', 1.0),     # Enable the arm first
+            ('Base -', 0.5),         # First base movement 
+            ('Base -', 0.5),         # Second base movement
+            ('Base -', 0.5),  
+            ('Gripper Open', 1.0), 
+            ('Shoulder -', 0.5),     # Lower arm toward box
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     
+            ('Shoulder -', 0.5),     # Complete lowering
+            ('Gripper Close', 1.0),  # Grip box
+            ('Shoulder +', 0.5),     # Lift box
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     
+            ('Shoulder +', 0.5),     # Complete lifting
+            ('Base -', 0.5),         # Turn to back
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),         
+            ('Base -', 0.5),  
+            ('Base -', 0.5),
+        ],
+
+        'store_back_position_1': [  # Position 1 sequence
+            # Move elbow to position 1 - exactly 38 steps down
+        ] + [('Elbow -', 0.5) for _ in range(38)] + [
+            ('Base +', 0.5),         # Reverse turn 1
+            ('Base +', 0.5),         # Reverse turn 2
+            ('Base +', 0.5),  
+            # Release box
+            ('Gripper Open', 1.0),   # Release box
+            # Return elbow exactly 30 steps up
+        ] + [('Elbow +', 0.5) for _ in range(38)],
+
+        'store_back_position_2': [  # Position 2 sequence
+            # Move elbow to position 2 - exactly 48 steps down
+        ] + [('Elbow -', 0.5) for _ in range(48)] + [
+            # Release box
+            ('Gripper Open', 1.0),   # Release box
+            # Return elbow exactly 40 steps up
+        ] + [('Elbow +', 0.5) for _ in range(48)],
+
+        'store_back_position_3': [  # Position 3 sequence
+            # Move elbow to position 3 - exactly 55 steps down
+        ] + [('Elbow -', 0.5) for _ in range(55)] + [
+            # Release box
+            ('Gripper Open', 1.0),   # Release box
+            # Return elbow exactly 50 steps up
+        ] + [('Elbow +', 0.5) for _ in range(55)],
+
+        'return_to_home': [
+            # Return base to center - exact reverse of turn to back
+            ('Base +', 0.5),         # Reverse turn 1
+            ('Base +', 0.5),         # Reverse turn 2
+            ('Base +', 0.5),         # Reverse turn 3
+            ('Base +', 0.5),         # Reverse turn 4
+            ('Base +', 0.5),         # Reverse turn 5
+            ('Base +', 0.5),         # Reverse turn 6
+            ('Base +', 0.5),         # Reverse turn 7
+            ('Base +', 0.5),         # Reverse turn 8
+            ('Base +', 0.5),         # Reverse turn 9
+            # Only disable the arm, not the entire robot
+            ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
+        ],
+
+        'pick_from_back_1': [  # Pick from first back position (30 iterations)
+            ('Enable Arm', 1.0),
+            # Turn to back - same as initial sequence
+            ('Base -', 0.5),         # Turn 1
+            ('Base -', 0.5),         # Turn 2
+            ('Base -', 0.5),         # Turn 3
+            ('Base -', 0.5),         # Turn 4
+            ('Base -', 0.5),         # Turn 5
+            ('Base -', 0.5),         # Turn 6
+            ('Base -', 0.5),         # Turn 7
+            ('Base -', 0.5),         # Turn 8
+            ('Base -', 0.5),         # Turn 9
+            # Move elbow to position 1 - exactly 30 steps
+        ] + [('Elbow -', 0.5) for _ in range(30)] + [
+            # Grip box
+            ('Gripper Close', 1.0),  # Grip box
+            # Return elbow - exactly 30 steps
+        ] + [('Elbow +', 0.5) for _ in range(30)] + [
+            # Return base to front - reverse of turn
+            ('Base +', 0.5),         # Return turn 1
+            ('Base +', 0.5),         # Return turn 2
+            ('Base +', 0.5),         # Return turn 3
+            ('Base +', 0.5),         # Return turn 4
+            ('Base +', 0.5),         # Return turn 5
+            ('Base +', 0.5),         # Return turn 6
+            ('Base +', 0.5),         # Return turn 7
+            ('Base +', 0.5),         # Return turn 8
+            ('Base +', 0.5),         # Return turn 9
+        ],
+
+        'pick_from_back_2': [  # Pick from second back position (40 iterations)
+            ('Enable Arm', 1.0),
+            # Turn to back - same as initial sequence
+            ('Base -', 0.5),         # Turn 1
+            ('Base -', 0.5),         # Turn 2
+            ('Base -', 0.5),         # Turn 3
+            ('Base -', 0.5),         # Turn 4
+            ('Base -', 0.5),         # Turn 5
+            ('Base -', 0.5),         # Turn 6
+            ('Base -', 0.5),         # Turn 7
+            ('Base -', 0.5),         # Turn 8
+            ('Base -', 0.5),         # Turn 9
+            # Move elbow to position 2 - exactly 40 steps
+        ] + [('Elbow -', 0.5) for _ in range(40)] + [
+            # Grip box
+            ('Gripper Close', 1.0),  # Grip box
+            # Return elbow - exactly 40 steps
+        ] + [('Elbow +', 0.5) for _ in range(40)] + [
+            # Return base to front - reverse of turn
+            ('Base +', 0.5),         # Return turn 1
+            ('Base +', 0.5),         # Return turn 2
+            ('Base +', 0.5),         # Return turn 3
+            ('Base +', 0.5),         # Return turn 4
+            ('Base +', 0.5),         # Return turn 5
+            ('Base +', 0.5),         # Return turn 6
+            ('Base +', 0.5),         # Return turn 7
+            ('Base +', 0.5),         # Return turn 8
+            ('Base +', 0.5),         # Return turn 9
+        ],
+
+        'pick_from_back_3': [  # Pick from third back position (50 iterations)
+            ('Enable Arm', 1.0),
+            # Turn to back - same as initial sequence
+            ('Base -', 0.5),         # Turn 1
+            ('Base -', 0.5),         # Turn 2
+            ('Base -', 0.5),         # Turn 3
+            ('Base -', 0.5),         # Turn 4
+            ('Base -', 0.5),         # Turn 5
+            ('Base -', 0.5),         # Turn 6
+            ('Base -', 0.5),         # Turn 7
+            ('Base -', 0.5),         # Turn 8
+            ('Base -', 0.5),         # Turn 9
+            # Move elbow to position 3 - exactly 50 steps
+        ] + [('Elbow -', 0.5) for _ in range(50)] + [
+            # Grip box
+            ('Gripper Close', 1.0),  # Grip box
+            # Return elbow - exactly 50 steps
+        ] + [('Elbow +', 0.5) for _ in range(50)] + [
+            # Return base to front - reverse of turn
+            ('Base +', 0.5),         # Return turn 1
+            ('Base +', 0.5),         # Return turn 2
+            ('Base +', 0.5),         # Return turn 3
+            ('Base +', 0.5),         # Return turn 4
+            ('Base +', 0.5),         # Return turn 5
+            ('Base +', 0.5),         # Return turn 6
+            ('Base +', 0.5),         # Return turn 7
+            ('Base +', 0.5),         # Return turn 8
+            ('Base +', 0.5),         # Return turn 9
+        ],
+
+        'place_on_shelf_a': [
+            # Move to shelf A
+            ('Base +', 0.5),         # Turn to shelf A
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Shoulder -', 0.5),     # Position for shelf A
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Gripper Open', 1.0),   # Release box
+            # Return to neutral - exact reverse of positioning
+            ('Elbow +', 0.5),        # Return elbow
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Shoulder +', 0.5),     # Return shoulder
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            # Return base to center
+            ('Base -', 0.5),         # Return base
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Disable Arm', 0.5),
+        ],
+
+        'place_on_shelf_b': [
+            # Move to shelf B
+            ('Base +', 0.5),         # Turn to shelf B
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Shoulder -', 0.5),     # Position for shelf B
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Gripper Open', 1.0),   # Release box
+            # Return to neutral - exact reverse of positioning
+            ('Elbow +', 0.5),        # Return elbow
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Shoulder +', 0.5),     # Return shoulder
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            # Return base to center
+            ('Base -', 0.5),         # Return base
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Disable Arm', 0.5),
+        ],
+
+        'place_on_shelf_c': [
+            # Move to shelf C
+            ('Base +', 0.5),         # Turn to shelf C
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Shoulder -', 0.5),     # Position for shelf C
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Gripper Open', 1.0),   # Release box
+            # Return to neutral - exact reverse of positioning
+            ('Elbow +', 0.5),        # Return elbow
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Shoulder +', 0.5),     # Return shoulder
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            # Return base to center
+            ('Base -', 0.5),         # Return base
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Disable Arm', 0.5),
+        ],
+
+        'move_forward_and_place': [
+            # Enable navigation and move forward for 12 seconds
+            ('Enable Motion', 1.0),    # Enable navigation motors
+            ('Forward', 1.0),          # Move forward for 1 second
+            ('Stop', 1.0),             # Stop movement
+            ('Disable Motion', 1.0),   # Disable navigation motors
+            
+            # Now pick up box from back position 1 (using existing sequence)
+            ('Enable Arm', 1.0),
+            # Turn to back - same as initial sequence
+            ('Base -', 0.5),         # Turn 1
+            ('Base -', 0.5),         # Turn 2
+            ('Base -', 0.5),         # Turn 3
+            ('Base -', 0.5),         # Turn 4
+            ('Base -', 0.5),         # Turn 5
+            ('Base -', 0.5),         # Turn 6
+            ('Base -', 0.5),         # Turn 7
+            ('Base -', 0.5),         # Turn 8
+            ('Base -', 0.5),         # Turn 9
+            # Move elbow to position 1 - exactly 30 steps
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            # Grip box
+            ('Gripper Close', 1.0),  # Grip box
+            # Return elbow - exactly 30 steps
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            # Return base to front - reverse of turn
+            ('Base +', 0.5),         # Return turn 1
+            ('Base +', 0.5),         # Return turn 2
+            ('Base +', 0.5),         # Return turn 3
+            ('Base +', 0.5),         # Return turn 4
+            ('Base +', 0.5),         # Return turn 5
+            ('Base +', 0.5),         # Return turn 6
+            ('Base +', 0.5),         # Return turn 7
+            ('Base +', 0.5),         # Return turn 8
+            ('Base +', 0.5),         # Return turn 9
+            
+            # Now place on shelf A (using existing sequence)
+            # Move to shelf A
+            ('Base +', 0.5),         # Turn to shelf A
+            ('Base +', 0.5),
+            ('Base +', 0.5),
+            ('Shoulder -', 0.5),     # Position for shelf A
+            ('Shoulder -', 0.5),
+            ('Shoulder -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Gripper Open', 1.0),   # Release box
+            # Return to neutral - exact reverse of positioning
+            ('Elbow +', 0.5),        # Return elbow
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Shoulder +', 0.5),     # Return shoulder
+            ('Shoulder +', 0.5),
+            ('Shoulder +', 0.5),
+            # Return base to center
+            ('Base -', 0.5),         # Return base
+            ('Base -', 0.5),
+            ('Base -', 0.5),
+            ('Disable Arm', 0.5),    # Disable arm at the end
+        ],
+    }
+    
+    try:
+        if os.path.exists(SEQUENCES_FILE):
+            # Load existing sequences from the JSON file
+            with open(SEQUENCES_FILE, 'r') as f:
+                SEQUENCES.update(json.load(f))
+            print(f"Loaded {len(SEQUENCES)} sequences from {SEQUENCES_FILE}")
+            return True
+        else:
+            # First run - initialize with default sequences and save to file
+            print(f"Sequences file {SEQUENCES_FILE} not found. Creating with default sequences.")
+            SEQUENCES.update(default_sequences)
+            save_sequences_to_file()
+            return True
+    except Exception as e:
+        print(f"Error loading sequences: {e}")
+        # If there's an error, still initialize with defaults
+        SEQUENCES.update(default_sequences)
+    return False
+
+# Try to load sequences at startup
+load_sequences_from_file()
+
+# Add this route after the other routes
+@app.route('/sequence_recorder', methods=['GET', 'POST'])
+def sequence_recorder():
+    """Page for recording and managing sequences"""
+    global recording_commands, is_recording, SEQUENCES
+    
+    message = ""
+    editing_sequence = request.args.get('edit')
+    test_result = None
+    
+    # If editing an existing sequence, load it into recording_commands
+    if editing_sequence and editing_sequence in SEQUENCES and not is_recording:
+        recording_commands = SEQUENCES[editing_sequence].copy()
+        message = f"Loaded sequence '{editing_sequence}' for editing. Press Start Recording to modify it."
+    
+    if request.method == 'POST':
+        if 'start_recording' in request.form:
+            is_recording = True
+            message = "Recording started. Use the controls below to record commands."
+        
+        elif 'stop_recording' in request.form:
+            is_recording = False
+            message = f"Recording stopped. {len(recording_commands)} commands recorded."
+        
+        elif 'save_sequence' in request.form:
+            sequence_name = request.form.get('sequence_name', '')
+            if not sequence_name:
+                message = "Error: Please provide a sequence name."
+            elif not recording_commands:
+                message = "Error: No commands recorded yet."
+            else:
+                SEQUENCES[sequence_name] = recording_commands.copy()
+                save_sequences_to_file()
+                message = f"Sequence '{sequence_name}' saved with {len(recording_commands)} commands."
+        
+        elif 'delete_sequence' in request.form:
+            sequence_name = request.form.get('delete_name', '')
+            if sequence_name in SEQUENCES:
+                del SEQUENCES[sequence_name]
+                save_sequences_to_file()
+                message = f"Sequence '{sequence_name}' deleted."
+            else:
+                message = f"Sequence '{sequence_name}' not found."
+        
+        elif 'clear_commands' in request.form:
+            recording_commands = []
+            message = "Recorded commands cleared."
+        
+        elif 'remove_command' in request.form:
+            try:
+                index = int(request.form.get('command_index', -1))
+                if 0 <= index < len(recording_commands):
+                    removed_cmd = recording_commands.pop(index)
+                    message = f"Removed command: {removed_cmd[0]}"
+                else:
+                    message = "Invalid command index."
+            except ValueError:
+                message = "Invalid command index format."
+        
+        elif 'test_sequence' in request.form:
+            sequence_name = request.form.get('test_name', '')
+            if sequence_name in SEQUENCES:
+                # Create a temporary sequence for testing
+                temp_sequence = SEQUENCES[sequence_name].copy()
+                
+                # Execute the sequence
+                result = "Testing sequence: " + sequence_name + "<br>"
+                
+                # Execute each command in the sequence
+                for i, (cmd, delay) in enumerate(temp_sequence):
+                    # Check if it's an arm or navigation command
+                    if cmd in ARM_COMMANDS:
+                        cmd_result = send_command(cmd)
+                    elif cmd in NAV_COMMANDS:
+                        cmd_result = send_nav_command(cmd)
+                    else:
+                        cmd_result = f"Unknown command: {cmd}"
+                    
+                    result += f"Step {i+1}: {cmd} - {cmd_result}<br>"
+                    time.sleep(delay)  # Wait for the specified delay
+                
+                test_result = result
+                message = f"Test completed for sequence '{sequence_name}'."
+            else:
+                message = f"Sequence '{sequence_name}' not found."
+        
+        elif 'test_current' in request.form:
+            if recording_commands:
+                # Execute the current recorded sequence
+                result = "Testing current recorded sequence:<br>"
+                
+                # Execute each command in the sequence
+                for i, (cmd, delay) in enumerate(recording_commands):
+                    # Check if it's an arm or navigation command
+                    if cmd in ARM_COMMANDS:
+                        cmd_result = send_command(cmd)
+                    elif cmd in NAV_COMMANDS:
+                        cmd_result = send_nav_command(cmd)
+                    else:
+                        cmd_result = f"Unknown command: {cmd}"
+                    
+                    result += f"Step {i+1}: {cmd} - {cmd_result}<br>"
+                    time.sleep(delay)  # Wait for the specified delay
+                
+                test_result = result
+                message = "Test completed for current recorded sequence."
+            else:
+                message = "No commands recorded to test."
+        
+        elif 'arm_cmd' in request.form:
+            cmd_label = request.form['arm_cmd']
+            response = send_command(cmd_label)
+            if is_recording:
+                # Default delay of 0.5 seconds
+                delay = float(request.form.get('delay', 0.5))
+                recording_commands.append((cmd_label, delay))
+                message = f"Recorded arm command: {cmd_label} with delay {delay}s"
+        
+        elif 'nav_cmd' in request.form:
+            cmd_label = request.form['nav_cmd']
+            response = send_nav_command(cmd_label)
+            if is_recording:
+                # Default delay of 0.5 seconds
+                delay = float(request.form.get('delay', 0.5))
+                recording_commands.append((cmd_label, delay))
+                message = f"Recorded navigation command: {cmd_label} with delay {delay}s"
+        
+        elif 'update_delay' in request.form:
+            try:
+                index = int(request.form.get('command_index', -1))
+                new_delay = float(request.form.get('new_delay', 0.5))
+                if 0 <= index < len(recording_commands):
+                    cmd = recording_commands[index][0]
+                    recording_commands[index] = (cmd, new_delay)
+                    message = f"Updated delay for command {index+1}: {cmd} to {new_delay}s"
+                else:
+                    message = "Invalid command index."
+            except ValueError:
+                message = "Invalid delay or index format."
+    
+    # Create HTML for the page
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sequence Recorder</title>
+        <style>
+            body { font-family: Arial; text-align: center; }
+            .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; }
+            .back-button { background-color: #f0f0f0; width: 150px; height: 40px; margin-bottom: 20px; }
+            .control-panel { display: flex; flex-wrap: wrap; justify-content: space-between; }
+            .panel { flex: 1; margin: 10px; padding: 15px; background-color: #f5f5f5; border-radius: 8px; min-width: 300px; }
+            .commands { display: flex; flex-direction: column; }
+            button { margin: 5px; padding: 8px; cursor: pointer; }
+            .arm-button { background-color: #d1e7dd; }
+            .nav-button { background-color: #cfe2ff; }
+            .record-button { background-color: #f8d7da; font-weight: bold; }
+            .save-button { background-color: #d1e7dd; font-weight: bold; }
+            .test-button { background-color: #ffc107; font-weight: bold; }
+            .message { margin: 20px; padding: 10px; background-color: #ffeeba; border-radius: 5px; }
+            .recording { color: red; font-weight: bold; animation: blink 1s infinite; }
+            .recorded-commands { text-align: left; margin: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; max-height: 200px; overflow-y: auto; }
+            .sequence-list { text-align: left; margin: 10px; max-height: 200px; overflow-y: auto; }
+            .sequence-item { margin: 5px 0; padding: 5px; background-color: #e9ecef; border-radius: 3px; display: flex; justify-content: space-between; }
+            .delete-btn { background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; }
+            .edit-btn { background-color: #0d6efd; color: white; border: none; border-radius: 3px; cursor: pointer; }
+            .test-btn { background-color: #ffc107; border: none; border-radius: 3px; cursor: pointer; }
+            .command-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .remove-btn { background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; font-size: 12px; }
+            .test-results { text-align: left; margin: 10px; padding: 10px; background-color: #e9ecef; border-radius: 5px; max-height: 300px; overflow-y: auto; }
+            input[type="text"], input[type="number"] { padding: 8px; margin: 5px; }
+            @keyframes blink {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+            }
+        </style>
+        <script>
+            function confirmDelete(name) {
+                return confirm('Are you sure you want to delete sequence "' + name + '"?');
+            }
+            
+            function confirmClear() {
+                return confirm('Are you sure you want to clear all recorded commands?');
+            }
+            
+            function confirmTest(name) {
+                return confirm('Are you sure you want to test sequence "' + name + '"? The robot will execute all commands in the sequence.');
+            }
+            
+            function updateDelay(value) {
+                document.getElementById('arm_delay').value = value;
+                document.getElementById('nav_delay').value = value;
+                document.getElementById('delay_display').innerText = value + 's';
+            }
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Sequence Recorder</h1>
+            <a href="/"><button class="back-button">Back to Main Menu</button></a>
+    """
+    
+    # Add message if any
+    if message:
+        html += f"""
+            <div class="message">
+                {message}
+            </div>
+        """
+    
+    # Recording status and controls
+    html += f"""
+            <div class="panel">
+                <h2>Recording Controls</h2>
+                <div>
+                    <form method="post">
+                        <button type="submit" name="start_recording" class="record-button">Start Recording</button>
+                        <button type="submit" name="stop_recording" class="record-button">Stop Recording</button>
+                        <button type="submit" name="clear_commands" class="record-button" onclick="return confirmClear()">Clear Commands</button>
+                        <button type="submit" name="test_current" class="test-button" onclick="return confirm('Test current sequence? The robot will execute all recorded commands.')">Test Current Sequence</button>
+                    </form>
+                    <div>
+                        Status: <span class="{'recording' if is_recording else ''}">
+                            {'RECORDING' if is_recording else 'Not Recording'}
+                        </span>
+                    </div>
+                </div>
+                
+                <h3>Command Delay</h3>
+                <div>
+                    <input type="range" min="0.1" max="3.0" step="0.1" value="0.5" 
+                           oninput="updateDelay(this.value)" style="width: 200px;">
+                    <div>Delay: <span id="delay_display">0.5s</span></div>
+                </div>
+                
+                <h3>Recorded Commands ({len(recording_commands)})</h3>
+                <div class="recorded-commands">
+    """
+    
+    # Show recorded commands with remove buttons and delay editing
+    for i, (cmd, delay) in enumerate(recording_commands):
+        html += f"""
+                    <div class="command-item">
+                        <div>{i+1}. {cmd} (delay: {delay}s)</div>
+                        <div>
+                            <form method="post" style="display: inline;">
+                                <input type="hidden" name="command_index" value="{i}">
+                                <input type="number" name="new_delay" value="{delay}" min="0.1" max="5.0" step="0.1" style="width: 60px;">
+                                <button type="submit" name="update_delay" class="edit-btn" style="padding: 2px 5px; font-size: 12px;">Update</button>
+                                <button type="submit" name="remove_command" class="remove-btn">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+        """
+    
+    html += """
+                </div>
+                
+                <h3>Save Sequence</h3>
+                <form method="post">
+    """
+    
+    # If editing, pre-fill the sequence name
+    if editing_sequence:
+        html += f"""
+                    <input type="text" name="sequence_name" placeholder="Sequence name" value="{editing_sequence}" required>
+        """
+    else:
+        html += """
+                    <input type="text" name="sequence_name" placeholder="Sequence name" required>
+        """
+    
+    html += """
+                    <button type="submit" name="save_sequence" class="save-button">Save Sequence</button>
+                </form>
+            </div>
+            
+            <div class="control-panel">
+                <div class="panel">
+                    <h2>Arm Controls</h2>
+                    <form method="post" class="commands">
+                        <input type="hidden" id="arm_delay" name="delay" value="0.5">
+                        <div>
+                            <button type="submit" name="arm_cmd" value="Enable Arm" class="arm-button">Enable Arm</button>
+                            <button type="submit" name="arm_cmd" value="Disable Arm" class="arm-button">Disable Arm</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="arm_cmd" value="Base +" class="arm-button">Base +</button>
+                            <button type="submit" name="arm_cmd" value="Base -" class="arm-button">Base -</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="arm_cmd" value="Shoulder +" class="arm-button">Shoulder +</button>
+                            <button type="submit" name="arm_cmd" value="Shoulder -" class="arm-button">Shoulder -</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="arm_cmd" value="Elbow +" class="arm-button">Elbow +</button>
+                            <button type="submit" name="arm_cmd" value="Elbow -" class="arm-button">Elbow -</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="arm_cmd" value="Gripper Open" class="arm-button">Gripper Open</button>
+                            <button type="submit" name="arm_cmd" value="Gripper Close" class="arm-button">Gripper Close</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="panel">
+                    <h2>Navigation Controls</h2>
+                    <form method="post" class="commands">
+                        <input type="hidden" id="nav_delay" name="delay" value="0.5">
+                        <div>
+                            <button type="submit" name="nav_cmd" value="Enable Motion" class="nav-button">Enable Motion</button>
+                            <button type="submit" name="nav_cmd" value="Disable Motion" class="nav-button">Disable Motion</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="nav_cmd" value="Forward" class="nav-button">Forward</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="nav_cmd" value="Left" class="nav-button">Left</button>
+                            <button type="submit" name="nav_cmd" value="Stop" class="nav-button">Stop</button>
+                            <button type="submit" name="nav_cmd" value="Right" class="nav-button">Right</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="nav_cmd" value="Backward" class="nav-button">Backward</button>
+                        </div>
+                        <div>
+                            <button type="submit" name="nav_cmd" value="Rotate CW" class="nav-button">Rotate CW</button>
+                            <button type="submit" name="nav_cmd" value="Rotate CCW" class="nav-button">Rotate CCW</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>Manage Sequences</h2>
+                <div class="sequence-list">
+    """
+    
+    # List all sequences with delete, edit and test buttons
+    for seq_name in SEQUENCES:
+        html += f"""
+                    <div class="sequence-item">
+                        <span>{seq_name} ({len(SEQUENCES[seq_name])} commands)</span>
+                        <div>
+                            <a href="/sequence_recorder?edit={seq_name}"><button class="edit-btn">Edit</button></a>
+                            <form method="post" style="display: inline;" onsubmit="return confirmTest('{seq_name}')">
+                                <input type="hidden" name="test_name" value="{seq_name}">
+                                <button type="submit" name="test_sequence" class="test-btn">Test</button>
+                            </form>
+                            <form method="post" style="display: inline;" onsubmit="return confirmDelete('{seq_name}')">
+                                <input type="hidden" name="delete_name" value="{seq_name}">
+                                <button type="submit" name="delete_sequence" class="delete-btn">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+        """
+    
+    html += """
+                </div>
+            </div>
+    """
+    
+    # Add test results if any
+    if test_result:
+        html += f"""
+            <div class="panel">
+                <h2>Test Results</h2>
+                <div class="test-results">
+                    {test_result}
+                </div>
+            </div>
+        """
+    
+    html += """
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
 
 if __name__ == '__main__':
     try:
