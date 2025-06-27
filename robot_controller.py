@@ -423,7 +423,6 @@ SEQUENCES = {
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
         # Return base to front - reverse of turn
         ('Base +', 0.5),         # Return turn 1
         ('Base +', 0.5),         # Return turn 2
@@ -886,6 +885,175 @@ def process_qr_code(qr_data):
         # Reset to idle state after error
         update_robot_state(status="idle")
 
+def continuous_line_monitor():
+    """Continuously monitor IR values and make small adjustments to keep on the line.
+    This function is designed to run in a separate thread."""
+    print("Starting continuous line monitor")
+    
+    # Only run while navigation is active
+    while robot_state["status"] == "navigating":
+        try:
+            # Get current IR correction value
+            ir_correction = robot_state.get("ir_correction", "0")
+            try:
+                correction_value = float(ir_correction)
+                line_detected = True
+            except ValueError:
+                # If we can't convert to float, it might be "N/A" or some other error value
+                correction_value = 0
+                line_detected = False
+            
+            # Define thresholds for correction
+            small_threshold = 0.5   # Small deviation
+            medium_threshold = 2.0  # Medium deviation
+            large_threshold = 5.0   # Large deviation
+            lost_threshold = 10.0   # Completely lost the line
+            
+            # Check if we've completely lost the line
+            if not line_detected or abs(correction_value) > lost_threshold:
+                # We've lost the line completely - initiate recovery
+                print(f"Line lost! Correction value: {ir_correction}. Starting recovery procedure.")
+                update_robot_state(action="Line lost - initiating recovery")
+                
+                # Stop movement
+                send_nav_command("Stop")
+                time.sleep(0.5)
+                
+                # Back up slightly to try to find the line again
+                send_nav_command("Backward")
+                time.sleep(1.0)
+                send_nav_command("Stop")
+                time.sleep(0.5)
+                
+                # Check if we found the line by backing up
+                ir_correction = robot_state.get("ir_correction", "0")
+                try:
+                    correction_value = float(ir_correction)
+                    if abs(correction_value) < lost_threshold:
+                        print(f"Line found after backing up. Correction: {correction_value}")
+                        # Found the line, align and continue
+                        adjust_navigation(None, robot_state.get("target_shelf"))
+                        send_nav_command("Forward")
+                        continue
+                except ValueError:
+                    pass
+                
+                # If we're still here, we didn't find the line by backing up
+                # Try a search pattern - first rotate clockwise
+                print("Searching for line by rotating CW...")
+                send_nav_command("Rotate CW")
+                
+                # Search for up to 5 seconds
+                search_start_time = time.time()
+                found_during_search = False
+                
+                while time.time() - search_start_time < 5.0:
+                    # Check every 0.5 seconds
+                    time.sleep(0.5)
+                    
+                    # Check if we found the line
+                    ir_correction = robot_state.get("ir_correction", "0")
+                    try:
+                        correction_value = float(ir_correction)
+                        if abs(correction_value) < lost_threshold:
+                            found_during_search = True
+                            print(f"Line found during CW rotation! Correction: {correction_value}")
+                            break
+                    except ValueError:
+                        pass
+                
+                # Stop rotation
+                send_nav_command("Stop")
+                time.sleep(0.5)
+                
+                # If we didn't find the line, try counter-clockwise
+                if not found_during_search:
+                    print("Line not found in CW rotation. Trying CCW...")
+                    send_nav_command("Rotate CCW")
+                    
+                    # Search for up to 8 seconds (longer to cover more area)
+                    search_start_time = time.time()
+                    while time.time() - search_start_time < 8.0:
+                        # Check every 0.5 seconds
+                        time.sleep(0.5)
+                        
+                        # Check if we found the line
+                        ir_correction = robot_state.get("ir_correction", "0")
+                        try:
+                            correction_value = float(ir_correction)
+                            if abs(correction_value) < lost_threshold:
+                                found_during_search = True
+                                print(f"Line found during CCW rotation! Correction: {correction_value}")
+                                break
+                        except ValueError:
+                            pass
+                    
+                    # Stop rotation
+                    send_nav_command("Stop")
+                    time.sleep(0.5)
+                
+                # If we found the line during search, align and continue
+                if found_during_search:
+                    print("Line found during search. Realigning...")
+                    adjust_navigation(None, robot_state.get("target_shelf"))
+                    send_nav_command("Forward")
+                    update_robot_state(action="Line recovered - resuming navigation")
+                else:
+                    # If we still couldn't find the line, report failure
+                    print("Could not recover line after extensive search")
+                    update_robot_state(
+                        error="Line lost and could not be recovered",
+                        action="Navigation failed - line lost"
+                    )
+                    # Don't stop navigation completely - let the user decide what to do
+                    # The robot will remain stopped until further commands
+            
+            # Make proportional adjustments based on deviation
+            elif abs(correction_value) > large_threshold:
+                # Large deviation - stop and perform full realignment
+                print(f"Large deviation detected: {correction_value}. Performing full realignment.")
+                # Use the adjust_navigation function for full realignment
+                adjust_navigation(None, robot_state.get("target_shelf"))
+                
+            elif abs(correction_value) > medium_threshold:
+                # Medium deviation - make a correction without stopping
+                if correction_value > 0:
+                    # Too far right, adjust left
+                    print(f"Medium right deviation: {correction_value}. Adjusting left.")
+                    send_nav_command("Left")
+                    time.sleep(0.2)  # Brief correction
+                    send_nav_command("Forward")  # Resume forward
+                else:
+                    # Too far left, adjust right
+                    print(f"Medium left deviation: {correction_value}. Adjusting right.")
+                    send_nav_command("Right")
+                    time.sleep(0.2)  # Brief correction
+                    send_nav_command("Forward")  # Resume forward
+                    
+            elif abs(correction_value) > small_threshold:
+                # Small deviation - make a very brief correction
+                if correction_value > 0:
+                    # Slightly right, minor left adjustment
+                    print(f"Small right deviation: {correction_value}. Minor left adjustment.")
+                    send_nav_command("Left")
+                    time.sleep(0.1)  # Very brief correction
+                    send_nav_command("Forward")  # Resume forward
+                else:
+                    # Slightly left, minor right adjustment
+                    print(f"Small left deviation: {correction_value}. Minor right adjustment.")
+                    send_nav_command("Right")
+                    time.sleep(0.1)  # Very brief correction
+                    send_nav_command("Forward")  # Resume forward
+            
+            # Sleep to prevent tight loop and allow other processes to run
+            time.sleep(0.5)
+            
+        except Exception as e:
+            print(f"Error in continuous line monitor: {e}")
+            time.sleep(1.0)  # Longer delay on error
+    
+    print("Continuous line monitor stopped")
+
 def navigate_to_shelf(target_shelf, back_position, box_id):
     """Handle navigation to target shelf with continuous feedback"""
     print(f"Starting navigation to {target_shelf}")
@@ -909,11 +1077,117 @@ def navigate_to_shelf(target_shelf, back_position, box_id):
         # Longer delay after enabling motion
         time.sleep(1.0)
         
-        # Start moving forward with explicit logging
-        print("Starting forward movement...")
-        response = send_nav_command("Forward")
-        print(f"Forward command response: {response}")
+        # Check if we're already on a line by checking IR correction value
+        ir_correction = robot_state.get("ir_correction", "0")
+        try:
+            correction_value = float(ir_correction)
+            line_detected = abs(correction_value) < 10  # Assuming large values mean no line detected
+        except ValueError:
+            correction_value = 0
+            line_detected = False
+            
+        if not line_detected:
+            # Implement a search pattern to find the line
+            print("No line detected. Starting search pattern...")
+            update_robot_state(action="Searching for line")
+            
+            # First try moving forward a bit to find the line
+            send_nav_command("Forward")
+            time.sleep(1.0)
+            send_nav_command("Stop")
+            time.sleep(0.5)
+            
+            # Check if we found the line
+            ir_correction = robot_state.get("ir_correction", "0")
+            try:
+                correction_value = float(ir_correction)
+                line_detected = abs(correction_value) < 10
+            except ValueError:
+                line_detected = False
+                
+            # If still not found, try rotating to find the line
+            if not line_detected:
+                print("Line not found. Rotating to search...")
+                
+                # Try rotating clockwise first
+                send_nav_command("Rotate CW")
+                
+                # Search for up to 5 seconds
+                search_start_time = time.time()
+                while time.time() - search_start_time < 5.0:
+                    # Check every 0.5 seconds
+                    time.sleep(0.5)
+                    
+                    # Check if we found the line
+                    ir_correction = robot_state.get("ir_correction", "0")
+                    try:
+                        correction_value = float(ir_correction)
+                        if abs(correction_value) < 10:
+                            line_detected = True
+                            print(f"Line found during rotation! Correction: {correction_value}")
+                            break
+                    except ValueError:
+                        pass
+                
+                # Stop rotation
+                send_nav_command("Stop")
+                time.sleep(0.5)
+                
+                # If still not found, try the other direction
+                if not line_detected:
+                    print("Line not found in CW rotation. Trying CCW...")
+                    
+                    # Try rotating counter-clockwise
+                    send_nav_command("Rotate CCW")
+                    
+                    # Search for up to 5 seconds
+                    search_start_time = time.time()
+                    while time.time() - search_start_time < 5.0:
+                        # Check every 0.5 seconds
+                        time.sleep(0.5)
+                        
+                        # Check if we found the line
+                        ir_correction = robot_state.get("ir_correction", "0")
+                        try:
+                            correction_value = float(ir_correction)
+                            if abs(correction_value) < 10:
+                                line_detected = True
+                                print(f"Line found during rotation! Correction: {correction_value}")
+                                break
+                        except ValueError:
+                            pass
+                    
+                    # Stop rotation
+                    send_nav_command("Stop")
+                    time.sleep(0.5)
         
+        # If we found the line or were already on it, start following it
+        if line_detected:
+            print("Line detected. Starting line following...")
+            update_robot_state(action="Following line to target")
+            
+            # First align with the line
+            adjust_navigation(None, target_shelf)
+            
+            # Start moving forward with explicit logging
+            print("Starting forward movement...")
+            response = send_nav_command("Forward")
+            print(f"Forward command response: {response}")
+            
+            # Start continuous line monitoring in a separate thread
+            monitor_thread = threading.Thread(target=continuous_line_monitor)
+            monitor_thread.daemon = True
+            monitor_thread.start()
+            
+        else:
+            # If we couldn't find the line, notify and stop
+            print("Could not find line after search pattern")
+            send_nav_command("Stop")
+            update_robot_state(
+                error="Could not find line for navigation",
+                action="Navigation failed - no line detected"
+            )
+            
         # Navigation will continue until a shelf QR code is detected
         # The process_qr_code function will handle detection and stopping
     except Exception as e:
@@ -948,33 +1222,72 @@ def adjust_navigation(current_marker, target_shelf):
         
         print(f"Adjusting navigation: Current={current_letter}, Target={target_letter}, IR={correction_value}")
         
-        if current_letter and target_letter:
-            if current_letter < target_letter:
-                # Need to go further
-                print("Target is ahead, moving forward")
-                send_nav_command("Forward")
-                update_robot_state(action="Moving forward to target")
-            elif current_letter > target_letter:
-                # Went too far, need to back up
-                print("Passed target, moving backward")
-                send_nav_command("Backward")
-                update_robot_state(action="Moving backward to target")
-                
-        # Apply IR correction
-        if correction_value > 1:
-            # Too far right, adjust left
-            print("Correcting left")
-            send_nav_command("Left")
-            update_robot_state(action=f"Correcting left (IR: {correction_value})")
-        elif correction_value < -1:
-            # Too far left, adjust right
-            print("Correcting right")
-            send_nav_command("Right")
-            update_robot_state(action=f"Correcting right (IR: {correction_value})")
+        # Define the threshold for considering the line centered
+        center_threshold = 0.5
         
-        # Resume forward motion if we're not at the target
-        if current_marker != target_shelf:
-            send_nav_command("Forward")
+        # Check if the line is significantly off-center
+        if abs(correction_value) > center_threshold:
+            # Stop forward motion first
+            send_nav_command("Stop")
+            time.sleep(0.2)  # Short pause
+            
+            # Move backward a bit to reposition
+            print("Moving backward to reposition")
+            send_nav_command("Backward")
+            update_robot_state(action=f"Moving backward to reposition (IR: {correction_value})")
+            time.sleep(0.5)  # Move backward for half a second
+            
+            # Stop backward motion
+            send_nav_command("Stop")
+            time.sleep(0.2)  # Short pause
+            
+            # Rotate to align with the line
+            if correction_value > center_threshold:
+                # Too far right, rotate counter-clockwise (left)
+                print(f"Rotating CCW to center line (IR: {correction_value})")
+                send_nav_command("Rotate CCW")
+                update_robot_state(action=f"Rotating CCW to center line (IR: {correction_value})")
+            elif correction_value < -center_threshold:
+                # Too far left, rotate clockwise (right)
+                print(f"Rotating CW to center line (IR: {correction_value})")
+                send_nav_command("Rotate CW")
+                update_robot_state(action=f"Rotating CW to center line (IR: {correction_value})")
+            
+            # Rotate for a duration proportional to the correction value
+            rotation_time = min(abs(correction_value) * 0.2, 1.0)  # Limit to 1 second max
+            time.sleep(rotation_time)
+            
+            # Stop rotation
+            send_nav_command("Stop")
+            time.sleep(0.2)  # Short pause
+            
+            # Resume forward motion if we're not at the target
+            if current_marker != target_shelf:
+                print("Resuming forward motion after alignment")
+                send_nav_command("Forward")
+                update_robot_state(action="Resuming forward after alignment")
+        else:
+            # Line is centered, proceed with normal navigation
+            if current_letter and target_letter:
+                if current_letter < target_letter:
+                    # Need to go further
+                    print("Target is ahead, moving forward")
+                    send_nav_command("Forward")
+                    update_robot_state(action="Moving forward to target")
+                elif current_letter > target_letter:
+                    # Went too far, need to back up
+                    print("Passed target, moving backward")
+                    send_nav_command("Backward")
+                    update_robot_state(action="Moving backward to target")
+                elif current_letter == target_letter:
+                    # At the target, stop
+                    print("At target shelf, stopping")
+                    send_nav_command("Stop")
+                    update_robot_state(action="Arrived at target shelf")
+            else:
+                # No marker information, just try to stay on the line
+                send_nav_command("Forward")
+                update_robot_state(action="Following line forward")
             
     except Exception as e:
         print(f"Navigation adjustment error: {e}")
