@@ -555,22 +555,27 @@ def serial_reader():
                                     ir_values.append(value)
                             
                             if len(ir_values) == 5:  # Ensure we have all 5 IR sensor values
-                                # Check if middle sensor (index 2) is active
-                                if ir_values[2] == 1:
-                                    # Send IR4 command to navigation ESP32
-                                    nav_ser.write("IR4\n".encode())
-                                    print("Middle sensor active, sent IR4 to navigation")
+                                # Calculate correction value directly
+                                # Using weighted average: -2, -1, 0, 1, 2 from left to right
+                                weights = [-2, -1, 0, 1, 2]
+                                active_count = sum(ir_values)
+                                
+                                if active_count == 0:
+                                    # No line detected - send 0 as correction
+                                    correction_value = 0
                                 else:
-                                    # For other cases, send binary value as before
-                                    binary_value = 0
-                                    for i in range(5):
-                                        if ir_values[i]:  # If sensor reads 1
-                                            binary_value |= (1 << (4-i))  # Set corresponding bit
-                                    
-                                    # Send binary value to navigation ESP32
-                                    ir_data = f"IR{binary_value}\n"
-                                    nav_ser.write(ir_data.encode())
-                                    print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
+                                    # Calculate weighted position
+                                    position_sum = sum(weights[i] * ir_values[i] for i in range(5))
+                                    correction_value = int(position_sum / active_count)
+                                
+                                # Send correction value with 'C' prefix that navigation ESP32 understands
+                                correction_cmd = f"C{correction_value}\n"
+                                nav_ser.write(correction_cmd.encode())
+                                print(f"Calculated correction: {correction_value} from IR: {ir_values}")
+                                
+                                # Update latest correction for UI
+                                latest_correction = str(correction_value)
+                                robot_state["ir_correction"] = latest_correction
                         except Exception as e:
                             print(f"Error parsing IR data: {e}")
                 except Exception as e:
@@ -890,27 +895,124 @@ def continuous_line_monitor():
     This function is designed to run in a separate thread."""
     print("Starting continuous line monitor")
     
+    # Pattern detection for shelf (without relying on QR)
+    consecutive_zero_readings = 0
+    max_consecutive_zeros = 5  # Threshold to identify a shelf
+    last_non_zero_reading = None
+    
+    # Shelf counting variables
+    shelves_passed = 0
+    shelf_detection_cooldown = 0  # Cooldown to prevent multiple detections of the same shelf
+    cooldown_period = 20  # Number of iterations before allowing another shelf detection
+    shelf_mapping = {0: "SHELF_A", 1: "SHELF_B", 2: "SHELF_C"}  # Map count to shelf names
+    
     # Only run while navigation is active
     while robot_state["status"] == "navigating":
         try:
             # Get current IR correction value
             ir_correction = robot_state.get("ir_correction", "0")
-            try:
-                correction_value = float(ir_correction)
-                line_detected = True
-            except ValueError:
-                # If we can't convert to float, it might be "N/A" or some other error value
-                correction_value = 0
-                line_detected = False
+            
+            # Update cooldown counter if active
+            if shelf_detection_cooldown > 0:
+                shelf_detection_cooldown -= 1
+            
+            # Special handling for all IR sensors reporting zero (completely lost)
+            if ir_correction == "0" or ir_correction == "0.0":
+                # Increment consecutive zero counter
+                consecutive_zero_readings += 1
+                print(f"All IR sensors zero - count: {consecutive_zero_readings}/{max_consecutive_zeros}")
+                
+                # If we've reached our threshold, consider it a shelf detection
+                if consecutive_zero_readings >= max_consecutive_zeros and shelf_detection_cooldown == 0:
+                    print("Pattern detected: Multiple consecutive zero readings - likely at shelf")
+                    
+                    # Increment shelf count
+                    shelves_passed += 1
+                    print(f"Shelf detected! Total shelves passed: {shelves_passed}")
+                    
+                    # Set cooldown to prevent multiple detections of the same shelf
+                    shelf_detection_cooldown = cooldown_period
+                    
+                    # Get the target shelf from state
+                    target_shelf = robot_state.get("target_shelf")
+                    
+                    # Determine current shelf based on count
+                    if shelves_passed <= 3:  # We only have 3 shelves (A, B, C)
+                        current_shelf = shelf_mapping[shelves_passed - 1]
+                        update_robot_state(action=f"Detected {current_shelf} (shelf #{shelves_passed})")
+                        
+                        # Check if we've reached our target shelf
+                        if target_shelf and current_shelf == target_shelf:
+                            print(f"Reached target shelf: {target_shelf}")
+                            update_robot_state(position=target_shelf)
+                            
+                            # Stop movement
+                            send_nav_command("Stop")
+                            time.sleep(0.5)
+                            
+                            # Stop navigation motors
+                            send_nav_command("Disable Motion")
+                            
+                            # Continue with box placement
+                            complete_shelf_placement()
+                            return  # Exit the line monitor as navigation is complete
+                        else:
+                            # Not at target shelf yet, continue moving
+                            print(f"Passed {current_shelf}, continuing to {target_shelf}")
+                            send_nav_command("Forward")
+                            consecutive_zero_readings = 0  # Reset counter to continue navigation
+                    else:
+                        # We've passed more shelves than expected - something is wrong
+                        print("Error: Passed more shelves than expected (A, B, C)")
+                        send_nav_command("Stop")
+                        update_robot_state(
+                            error="Navigation error: Passed more shelves than expected",
+                            action="Stopped due to navigation error"
+                        )
+                        return  # Exit the monitor
+                
+                # Standard rotation pattern for finding the line
+                elif consecutive_zero_readings == 1:
+                    # On first zero, try moving forward a bit
+                    send_nav_command("Forward")
+                    time.sleep(0.5)
+                    send_nav_command("Stop")
+                    time.sleep(0.2)
+                elif consecutive_zero_readings == 3:
+                    # After a few zeros, start rotating to search
+                    # Rotate in direction of last known line position
+                    if last_non_zero_reading and last_non_zero_reading > 0:
+                        send_nav_command("Rotate CW")
+                    else:
+                        send_nav_command("Rotate CCW")
+                    time.sleep(1.0)
+                    send_nav_command("Stop")
+            else:
+                # Reset counter when we get a non-zero reading
+                consecutive_zero_readings = 0
+                
+                # Normal IR correction handling
+                try:
+                    # Convert correction value to int instead of float
+                    correction_value = int(ir_correction)
+                    line_detected = True
+                    
+                    # Store the last non-zero reading
+                    if correction_value != 0:
+                        last_non_zero_reading = correction_value
+                except ValueError:
+                    # If we can't convert to int, it might be "N/A" or some other error value
+                    correction_value = 0
+                    line_detected = False
             
             # Define thresholds for correction
-            small_threshold = 0.5   # Small deviation
-            medium_threshold = 2.0  # Medium deviation
-            large_threshold = 5.0   # Large deviation
-            lost_threshold = 10.0   # Completely lost the line
+            small_threshold = 1    # Small deviation
+            medium_threshold = 2   # Medium deviation
+            large_threshold = 3    # Large deviation
+            lost_threshold = 4     # Completely lost the line
             
             # Check if we've completely lost the line
-            if not line_detected or abs(correction_value) > lost_threshold:
+            if not line_detected or abs(correction_value) >= lost_threshold:
                 # We've lost the line completely - initiate recovery
                 print(f"Line lost! Correction value: {ir_correction}. Starting recovery procedure.")
                 update_robot_state(action="Line lost - initiating recovery")
@@ -928,7 +1030,7 @@ def continuous_line_monitor():
                 # Check if we found the line by backing up
                 ir_correction = robot_state.get("ir_correction", "0")
                 try:
-                    correction_value = float(ir_correction)
+                    correction_value = int(ir_correction)
                     if abs(correction_value) < lost_threshold:
                         print(f"Line found after backing up. Correction: {correction_value}")
                         # Found the line, align and continue
@@ -954,7 +1056,7 @@ def continuous_line_monitor():
                     # Check if we found the line
                     ir_correction = robot_state.get("ir_correction", "0")
                     try:
-                        correction_value = float(ir_correction)
+                        correction_value = int(ir_correction)
                         if abs(correction_value) < lost_threshold:
                             found_during_search = True
                             print(f"Line found during CW rotation! Correction: {correction_value}")
@@ -980,7 +1082,7 @@ def continuous_line_monitor():
                         # Check if we found the line
                         ir_correction = robot_state.get("ir_correction", "0")
                         try:
-                            correction_value = float(ir_correction)
+                            correction_value = int(ir_correction)
                             if abs(correction_value) < lost_threshold:
                                 found_during_search = True
                                 print(f"Line found during CCW rotation! Correction: {correction_value}")
@@ -1009,13 +1111,13 @@ def continuous_line_monitor():
                     # The robot will remain stopped until further commands
             
             # Make proportional adjustments based on deviation
-            elif abs(correction_value) > large_threshold:
+            elif abs(correction_value) >= large_threshold:
                 # Large deviation - stop and perform full realignment
                 print(f"Large deviation detected: {correction_value}. Performing full realignment.")
                 # Use the adjust_navigation function for full realignment
                 adjust_navigation(None, robot_state.get("target_shelf"))
                 
-            elif abs(correction_value) > medium_threshold:
+            elif abs(correction_value) >= medium_threshold:
                 # Medium deviation - make a correction without stopping
                 if correction_value > 0:
                     # Too far right, adjust left
@@ -1030,7 +1132,7 @@ def continuous_line_monitor():
                     time.sleep(0.2)  # Brief correction
                     send_nav_command("Forward")  # Resume forward
                     
-            elif abs(correction_value) > small_threshold:
+            elif abs(correction_value) >= small_threshold:
                 # Small deviation - make a very brief correction
                 if correction_value > 0:
                     # Slightly right, minor left adjustment
@@ -1045,18 +1147,29 @@ def continuous_line_monitor():
                     time.sleep(0.1)  # Very brief correction
                     send_nav_command("Forward")  # Resume forward
             
-            # Sleep to prevent tight loop and allow other processes to run
-            time.sleep(0.5)
-            
         except Exception as e:
             print(f"Error in continuous line monitor: {e}")
             time.sleep(1.0)  # Longer delay on error
+        
+        # Sleep to prevent tight loop and allow other processes to run
+        time.sleep(0.5)
     
     print("Continuous line monitor stopped")
 
 def navigate_to_shelf(target_shelf, back_position, box_id):
     """Handle navigation to target shelf with continuous feedback"""
     print(f"Starting navigation to {target_shelf}")
+    
+    # Convert target shelf name to a shelf index for our counting system
+    target_shelf_letter = target_shelf[-1].upper() if target_shelf and len(target_shelf) > 0 else "A"
+    shelf_indices = {"A": "SHELF_A", "B": "SHELF_B", "C": "SHELF_C"}
+    
+    if target_shelf_letter not in shelf_indices:
+        print(f"Invalid shelf letter: {target_shelf_letter}. Defaulting to Shelf A")
+        target_shelf = "SHELF_A"
+    else:
+        # Ensure target_shelf has the correct format for our shelf mapping
+        target_shelf = shelf_indices[target_shelf_letter]
     
     # Update robot state with navigation target
     update_robot_state(
@@ -1212,7 +1325,7 @@ def adjust_navigation(current_marker, target_shelf):
         # Get current IR correction value
         ir_correction = robot_state.get("ir_correction", "0")
         try:
-            correction_value = float(ir_correction)
+            correction_value = int(ir_correction)
         except ValueError:
             correction_value = 0
         
@@ -1223,10 +1336,10 @@ def adjust_navigation(current_marker, target_shelf):
         print(f"Adjusting navigation: Current={current_letter}, Target={target_letter}, IR={correction_value}")
         
         # Define the threshold for considering the line centered
-        center_threshold = 0.5
+        center_threshold = 1
         
         # Check if the line is significantly off-center
-        if abs(correction_value) > center_threshold:
+        if abs(correction_value) >= center_threshold:
             # Stop forward motion first
             send_nav_command("Stop")
             time.sleep(0.2)  # Short pause
@@ -1242,12 +1355,12 @@ def adjust_navigation(current_marker, target_shelf):
             time.sleep(0.2)  # Short pause
             
             # Rotate to align with the line
-            if correction_value > center_threshold:
+            if correction_value > 0:
                 # Too far right, rotate counter-clockwise (left)
                 print(f"Rotating CCW to center line (IR: {correction_value})")
                 send_nav_command("Rotate CCW")
                 update_robot_state(action=f"Rotating CCW to center line (IR: {correction_value})")
-            elif correction_value < -center_threshold:
+            elif correction_value < 0:
                 # Too far left, rotate clockwise (right)
                 print(f"Rotating CW to center line (IR: {correction_value})")
                 send_nav_command("Rotate CW")
@@ -1307,8 +1420,18 @@ def complete_shelf_placement():
             nav_status="stopped"
         )
         return
-        
-    shelf_letter = target_shelf[-1].lower()
+    
+    # Extract the shelf letter from the target shelf name
+    # Format could be either "SHELF_X" or just "X"
+    if target_shelf.startswith("SHELF_") and len(target_shelf) > 6:
+        shelf_letter = target_shelf[-1].lower()
+    else:
+        shelf_letter = target_shelf.lower()
+    
+    # Validate shelf letter
+    if shelf_letter not in ['a', 'b', 'c']:
+        print(f"Invalid shelf letter: {shelf_letter}. Defaulting to shelf A")
+        shelf_letter = 'a'
     
     try:
         # Pick up box from back position
@@ -2453,10 +2576,10 @@ def send_test_ir():
     result = "Not attempted"
     if nav_serial_available:
         try:
-            # Send a test IR signal with all sensors active - without colon
-            test_ir = "IR31\n"  # 31 = 11111 in binary
-            nav_ser.write(test_ir.encode())
-            print(f"Sent test IR signal: {test_ir.strip()}")
+            # Send a test correction value with the 'C' prefix that navigation ESP32 understands
+            test_correction = "C2\n"  # Positive 2 correction (move right)
+            nav_ser.write(test_correction.encode())
+            print(f"Sent test correction: {test_correction.strip()}")
             
             # Wait for response
             time.sleep(0.5)
@@ -2465,6 +2588,10 @@ def send_test_ir():
                 response += nav_ser.readline().decode(errors='ignore')
             
             result = f"Response: {response}" if response else "No response received"
+            
+            # Also update the latest correction value for UI
+            latest_correction = "2"
+            robot_state["ir_correction"] = latest_correction
         except Exception as e:
             result = f"Error: {str(e)}"
     else:
