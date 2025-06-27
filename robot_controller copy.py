@@ -15,12 +15,15 @@ from qr_code_generator import RobotQRGenerator
 import os
 import numpy as np
 from PIL import Image
+import signal
+import sys
 
 # Configuration
-ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32
-ARM_SERIAL_PORT_ALT = '/dev/ttyACM0'  # Alternative port for arm ESP32
-NAV_SERIAL_PORT = '/dev/ttyUSB1'  # Primary port for navigation ESP32
-NAV_SERIAL_PORT_ALT = '/dev/ttyUSB0'  # Alternative port for navigation ESP32
+ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32 on Linux
+ARM_SERIAL_PORT_ALT = '/dev/ttyACM0'  # Alternative port for arm ESP32 on Linux
+NAV_SERIAL_PORT = '/dev/ttyUSB1'  # Primary port for navigation ESP32 on Linux
+NAV_SERIAL_PORT_ALT = '/dev/ttyUSB0'  # Alternative port for navigation ESP32 on Linux
+
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
@@ -150,7 +153,7 @@ SEQUENCES = {
         ('Disable Arm', 0.5),    # Disable arm only, navigation can still work
     ],
 
-    'pick_from_back_1': [  # Pick from first back position (30 iterations)
+    'pick_from_back_1': [  # Pick from first back position (38 iterations)
         ('Enable Arm', 1.0),
         # Turn to back - same as initial sequence
         ('Base -', 0.5),         # Turn 1
@@ -162,14 +165,16 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 1 - exactly 30 steps
-        ('Elbow -', 0.5),
-    ] * 30 + [
+    ] + 
+    # Move elbow to position 1 - exactly 38 steps (updated from 30)
+    [('Elbow -', 0.5) for _ in range(38)] + 
+    [
         # Grip box
         ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 30 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 30 + [
+    ] + 
+    # Return elbow - exactly 38 steps (updated from 30)
+    [('Elbow +', 0.5) for _ in range(38)] + 
+    [
         # Return base to front - reverse of turn
         ('Base +', 0.5),         # Return turn 1
         ('Base +', 0.5),         # Return turn 2
@@ -194,14 +199,16 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 2 - exactly 40 steps
-        ('Elbow -', 0.5),
-    ] * 40 + [
+    ] + 
+    # Move elbow to position 2 - exactly 40 steps
+    [('Elbow -', 0.5) for _ in range(40)] + 
+    [
         # Grip box
         ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 40 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 40 + [
+    ] + 
+    # Return elbow - exactly 40 steps
+    [('Elbow +', 0.5) for _ in range(40)] + 
+    [
         # Return base to front - reverse of turn
         ('Base +', 0.5),         # Return turn 1
         ('Base +', 0.5),         # Return turn 2
@@ -226,14 +233,16 @@ SEQUENCES = {
         ('Base -', 0.5),         # Turn 7
         ('Base -', 0.5),         # Turn 8
         ('Base -', 0.5),         # Turn 9
-        # Move elbow to position 3 - exactly 50 steps
-        ('Elbow -', 0.5),
-    ] * 50 + [
+    ] + 
+    # Move elbow to position 3 - exactly 50 steps
+    [('Elbow -', 0.5) for _ in range(50)] + 
+    [
         # Grip box
         ('Gripper Close', 1.0),  # Grip box
-        # Return elbow - exactly 50 steps
-        ('Elbow +', 0.5),        # Return elbow
-    ] * 50 + [
+    ] + 
+    # Return elbow - exactly 50 steps
+    [('Elbow +', 0.5) for _ in range(50)] + 
+    [
         # Return base to front - reverse of turn
         ('Base +', 0.5),         # Return turn 1
         ('Base +', 0.5),         # Return turn 2
@@ -388,16 +397,9 @@ SEQUENCES = {
         ('Elbow -', 0.5),
         ('Elbow -', 0.5),
         ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
-        ('Elbow -', 0.5),
         # Grip box
         ('Gripper Close', 1.0),  # Grip box
         # Return elbow - exactly 30 steps
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
-        ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
         ('Elbow +', 0.5),
@@ -510,7 +512,18 @@ except Exception as e:
 latest_correction = "N/A"
 
 # Initialize QR code generator
-qr_generator = RobotQRGenerator(db_path=DB_PATH)
+try:
+    # Check if database exists, if not create it
+    if not os.path.exists(DB_PATH):
+        print(f"Creating new database at {DB_PATH}")
+        conn = sqlite3.connect(DB_PATH)
+        conn.close()
+    
+    qr_generator = RobotQRGenerator(db_path=DB_PATH)
+    print(f"QR generator initialized with database: {DB_PATH}")
+except Exception as e:
+    print(f"Error initializing QR generator: {e}")
+    qr_generator = None
 
 # Camera capture for QR code scanning
 camera = None
@@ -559,8 +572,8 @@ def serial_reader():
                                 # Check if middle sensor (index 2) is active
                                 if ir_values[2] == 1:
                                     # Send IR4 command to navigation ESP32
-                                    nav_ser.write("IR4\n".encode())
-                                    print("Middle sensor active, sent IR4 to navigation")
+                                    nav_ser.write("C4\n".encode())  # Changed from IR4 to C4
+                                    print("Middle sensor active, sent C4 to navigation")
                                 else:
                                     # For other cases, send binary value as before
                                     binary_value = 0
@@ -568,10 +581,10 @@ def serial_reader():
                                         if ir_values[i]:  # If sensor reads 1
                                             binary_value |= (1 << (4-i))  # Set corresponding bit
                                     
-                                    # Send binary value to navigation ESP32
-                                    ir_data = f"IR{binary_value}\n"
-                                    nav_ser.write(ir_data.encode())
-                                    print(f"Forwarded IR data to navigation: {ir_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
+                                    # Send binary value to navigation ESP32 with C prefix
+                                    correction_data = f"C{binary_value}\n"  # Changed from IR to C
+                                    nav_ser.write(correction_data.encode())
+                                    print(f"Forwarded IR data to navigation: {correction_data.strip()} (binary: {bin(binary_value)[2:].zfill(5)})")
                         except Exception as e:
                             print(f"Error parsing IR data: {e}")
                 except Exception as e:
@@ -584,7 +597,7 @@ def serial_reader():
                     if line.startswith("CORRECTION:"):
                         latest_correction = line.split(":", 1)[1].strip()
                         robot_state["ir_correction"] = latest_correction
-                        print(f"Received IR correction: {latest_correction}")  # Add debug print
+                        print(f"Received IR correction: {latest_correction}")
                 except Exception as e:
                     print(f"Error reading from navigation serial: {e}")
                     
@@ -795,11 +808,16 @@ def process_qr_code(qr_data):
         print(f"Processing QR code: {qr_data}")
         
         # If the robot is already busy, don't process another QR code
-        if robot_state["status"] != "idle":
+        if robot_state["status"] != "idle" and robot_state["status"] != "navigating":
             print(f"Robot is busy ({robot_state['status']}), ignoring QR code")
             return
             
         if qr_data.startswith('BOX_') or qr_data == "BOX_TEST":
+            # Only process box QR codes if the robot is idle
+            if robot_state["status"] != "idle":
+                print("Robot is not idle, ignoring box QR code")
+                return
+                
             # Extract box information
             if qr_data == "BOX_TEST":
                 box_id = "TEST"
@@ -823,7 +841,9 @@ def process_qr_code(qr_data):
             
             # Step 1: Pick up the box and move to back
             update_robot_state(status="picking", action=f"Picking up box: {box_id}")
-            execute_sequence('pick_and_store_back')
+            result = execute_sequence('pick_and_store_back')
+            if "failed" in result.lower():
+                raise Exception(f"Failed to pick up box: {result}")
             
             # Determine which back position to use based on available slots
             # For now, using a simple round-robin approach
@@ -832,11 +852,15 @@ def process_qr_code(qr_data):
             
             # Store the box at the selected back position
             update_robot_state(status="storing", action=f"Storing box at back position {back_position}")
-            execute_sequence(back_sequence)
+            result = execute_sequence(back_sequence)
+            if "failed" in result.lower():
+                raise Exception(f"Failed to store box at back position: {result}")
             
             # Return arm to home position
             update_robot_state(status="homing", action="Returning to home position")
-            execute_sequence('return_to_home')
+            result = execute_sequence('return_to_home')
+            if "failed" in result.lower():
+                raise Exception(f"Failed to return to home position: {result}")
             
             # Add a small delay to ensure the arm is fully settled
             print("Waiting for arm to settle before starting navigation...")
@@ -901,6 +925,10 @@ def navigate_to_shelf(target_shelf, back_position, box_id):
     )
     
     try:
+        # Make sure we're not moving first
+        send_nav_command("Stop")
+        time.sleep(0.5)
+        
         # Enable navigation with more explicit logging
         print("Enabling navigation motors...")
         response = send_nav_command("Enable Motion")
@@ -908,6 +936,9 @@ def navigate_to_shelf(target_shelf, back_position, box_id):
         
         # Longer delay after enabling motion
         time.sleep(1.0)
+        
+        # Reset any IR correction values
+        robot_state["ir_correction"] = "0"
         
         # Start moving forward with explicit logging
         print("Starting forward movement...")
@@ -948,32 +979,47 @@ def adjust_navigation(current_marker, target_shelf):
         
         print(f"Adjusting navigation: Current={current_letter}, Target={target_letter}, IR={correction_value}")
         
+        # First handle position comparison
+        position_adjusted = False
         if current_letter and target_letter:
             if current_letter < target_letter:
                 # Need to go further
                 print("Target is ahead, moving forward")
                 send_nav_command("Forward")
                 update_robot_state(action="Moving forward to target")
+                position_adjusted = True
             elif current_letter > target_letter:
                 # Went too far, need to back up
                 print("Passed target, moving backward")
                 send_nav_command("Backward")
                 update_robot_state(action="Moving backward to target")
-                
-        # Apply IR correction
-        if correction_value > 1:
+                position_adjusted = True
+        
+        # Apply IR correction - use threshold for more stability
+        correction_threshold = 1.5  # Increased threshold for stability
+        if correction_value > correction_threshold:
             # Too far right, adjust left
-            print("Correcting left")
+            print(f"Correcting left (value: {correction_value})")
+            # Send direct correction command to ESP32
+            send_correction(correction_value)
+            # Also send left command for immediate action
             send_nav_command("Left")
             update_robot_state(action=f"Correcting left (IR: {correction_value})")
-        elif correction_value < -1:
+            # Wait a moment for correction to take effect
+            time.sleep(0.3)
+        elif correction_value < -correction_threshold:
             # Too far left, adjust right
-            print("Correcting right")
+            print(f"Correcting right (value: {correction_value})")
+            # Send direct correction command to ESP32
+            send_correction(correction_value)
+            # Also send right command for immediate action
             send_nav_command("Right")
             update_robot_state(action=f"Correcting right (IR: {correction_value})")
+            # Wait a moment for correction to take effect
+            time.sleep(0.3)
         
-        # Resume forward motion if we're not at the target
-        if current_marker != target_shelf:
+        # Resume forward motion if we're not at the target and no position adjustment was made
+        if current_marker != target_shelf and not position_adjusted:
             send_nav_command("Forward")
             
     except Exception as e:
@@ -998,20 +1044,37 @@ def complete_shelf_placement():
     shelf_letter = target_shelf[-1].lower()
     
     try:
+        # Make sure navigation is stopped before arm operations
+        send_nav_command("Stop")
+        time.sleep(0.5)
+        send_nav_command("Disable Motion")
+        time.sleep(0.5)
+        
         # Pick up box from back position
         update_robot_state(
             status="retrieving",
             action=f"Retrieving box from back position {back_position}",
             nav_status="stopped"
         )
-        execute_sequence(f'pick_from_back_{back_position}')
+        
+        # Execute the pick sequence and check for success
+        result = execute_sequence(f'pick_from_back_{back_position}')
+        if "failed" in result.lower():
+            raise Exception(f"Failed to pick box from back position: {result}")
+        
+        # Add a small delay to ensure the gripper has closed properly
+        time.sleep(1.0)
         
         # Place on the correct shelf
         update_robot_state(
             status="placing",
             action=f"Placing box on shelf {shelf_letter.upper()}"
         )
-        execute_sequence(f'place_on_shelf_{shelf_letter}')
+        
+        # Execute the placement sequence and check for success
+        result = execute_sequence(f'place_on_shelf_{shelf_letter}')
+        if "failed" in result.lower():
+            raise Exception(f"Failed to place box on shelf: {result}")
         
         # Reset state
         update_robot_state(
@@ -1023,13 +1086,18 @@ def complete_shelf_placement():
             nav_status="stopped"
         )
         
+        print("Box placement completed successfully")
+        return "Box placement completed successfully"
+        
     except Exception as e:
-        print(f"Error during shelf placement: {e}")
+        error_msg = f"Error during shelf placement: {str(e)}"
+        print(error_msg)
         update_robot_state(
-            error=f"Placement error: {str(e)}",
+            error=error_msg,
             status="idle",
             nav_status="stopped"
         )
+        return f"Box placement failed: {str(e)}"
 
 def send_command(cmd_label):
     """Send a command to the ESP32 arm controller"""
@@ -1110,12 +1178,25 @@ def send_correction(correction_value):
     
     response = ""
     try:
-        nav_ser.write((str(correction_value) + '\n').encode())
+        # Format correction command with C prefix
+        correction_cmd = f"C{int(correction_value)}\n"
+        print(f"Sending correction command: {correction_cmd.strip()}")
+        nav_ser.write(correction_cmd.encode())
+        
+        # Wait for response
         time.sleep(0.1)
+        response_data = ""
         while nav_ser.in_waiting:
-            response += nav_ser.readline().decode(errors='ignore')
+            response_data += nav_ser.readline().decode(errors='ignore')
+            
+        if response_data:
+            print(f"Correction response: {response_data.strip()}")
+            response = response_data
+        else:
+            response = "No response"
     except Exception as e:
         response = f"Error: {str(e)}"
+        print(f"Error sending correction: {str(e)}")
     
     return response
 
@@ -1623,7 +1704,13 @@ def navigation_control():
         elif 'send_correction' in request.form:
             correction = request.form.get('correction')
             if correction:
-                response = send_correction(correction)
+                # Ensure correction value is properly formatted
+                try:
+                    # Convert to integer to ensure it's a valid number
+                    correction_val = int(correction)
+                    response = send_correction(correction_val)
+                except ValueError:
+                    response = "Invalid correction value. Must be an integer."
     
     return render_template_string(NAV_HTML, response=response, latest_correction=latest_correction)
 
@@ -1639,6 +1726,11 @@ def start_camera():
     
     if camera_running:
         return jsonify({"status": "Camera already running"})
+    
+    # Try to initialize camera first
+    camera = get_camera()
+    if camera is None:
+        return jsonify({"status": "Failed to initialize camera. Check connections and try again.", "error": True})
     
     # Start camera in a separate thread
     camera_thread = threading.Thread(target=scan_qr_codes)
@@ -2002,13 +2094,19 @@ def sequence_analysis_page():
 
 def cleanup():
     """Clean up resources before exit"""
+    print("Cleaning up resources...")
     if camera_running:
         release_camera()
     if arm_serial_available:
         arm_ser.close()
+        print("Arm serial port closed")
     if nav_serial_available:
         nav_ser.close()
-    qr_generator.close()
+        print("Navigation serial port closed")
+    if qr_generator is not None:
+        qr_generator.close()
+        print("QR generator closed")
+    print("Cleanup complete")
 
 # Add this function after the other utility functions
 def debug_serial_connections():
@@ -2140,10 +2238,10 @@ def send_test_ir():
     result = "Not attempted"
     if nav_serial_available:
         try:
-            # Send a test IR signal with all sensors active - without colon
-            test_ir = "IR31\n"  # 31 = 11111 in binary
-            nav_ser.write(test_ir.encode())
-            print(f"Sent test IR signal: {test_ir.strip()}")
+            # Send a test IR signal with all sensors active - using C prefix
+            test_cmd = "C31\n"  # 31 = 11111 in binary, using C prefix instead of IR
+            nav_ser.write(test_cmd.encode())
+            print(f"Sent test IR signal: {test_cmd.strip()}")
             
             # Wait for response
             time.sleep(0.5)
@@ -2159,8 +2257,22 @@ def send_test_ir():
     
     return jsonify({"result": result})
 
+def signal_handler(sig, frame):
+    """Handle termination signals for graceful shutdown"""
+    print('Received termination signal. Shutting down...')
+    cleanup()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 if __name__ == '__main__':
     try:
+        print("Starting Robot Controller on http://0.0.0.0:5000")
+        print(f"Serial ports: ARM={ARM_SERIAL_PORT}, NAV={NAV_SERIAL_PORT}")
         app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    except Exception as e:
+        print(f"Error starting application: {e}")
     finally:
         cleanup() 
