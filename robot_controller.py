@@ -19,16 +19,11 @@ import signal
 import sys
 
 # Configuration
-ARM_SERIAL_PORT = 'COM3'  # Primary port for arm ESP32 on Windows
-ARM_SERIAL_PORT_ALT = 'COM4'  # Alternative port for arm ESP32 on Windows
-NAV_SERIAL_PORT = 'COM1'  # Primary port for navigation ESP32 on Windows
-NAV_SERIAL_PORT_ALT = 'COM2'  # Alternative port for navigation ESP32 on Windows
-# For Linux compatibility
-if os.name == 'posix':
-    ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32 on Linux
-    ARM_SERIAL_PORT_ALT = '/dev/ttyACM0'  # Alternative port for arm ESP32 on Linux
-    NAV_SERIAL_PORT = '/dev/ttyUSB1'  # Primary port for navigation ESP32 on Linux
-    NAV_SERIAL_PORT_ALT = '/dev/ttyUSB0'  # Alternative port for navigation ESP32 on Linux
+ARM_SERIAL_PORT = '/dev/ttyACM1'  # Primary port for arm ESP32 on Linux
+ARM_SERIAL_PORT_ALT = '/dev/ttyACM0'  # Alternative port for arm ESP32 on Linux
+NAV_SERIAL_PORT = '/dev/ttyUSB1'  # Primary port for navigation ESP32 on Linux
+NAV_SERIAL_PORT_ALT = '/dev/ttyUSB0'  # Alternative port for navigation ESP32 on Linux
+
 BAUDRATE = 9600
 DB_PATH = 'robot_tasks.db'
 # Camera configuration - can be overridden with environment variables
