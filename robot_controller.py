@@ -44,12 +44,12 @@ KNOWN_WIDTH_PIXELS = None
 ARM_COMMANDS = {
     'Enable Arm': 'z',
     'Disable Arm': 'x',
-    'Base +': 'e',  # Changed to 'e' (was 'q') to reverse direction
-    'Base -': 'q',  # Changed to 'q' (was 'e') to reverse direction
-    'Shoulder +': 'a',
-    'Shoulder -': 'd',
-    'Elbow +': 'w',  # Using 'w' for Elbow +
-    'Elbow -': 's',  # Using 's' for Elbow -
+    'Base +': 'e',  # Correct direction for base
+    'Base -': 'q',  # Correct direction for base
+    'Shoulder +': 'd',  # Changed from 'a' to 'd' to match correct direction
+    'Shoulder -': 'a',  # Changed from 'd' to 'a' to match correct direction
+    'Elbow +': 's',  # Changed from 'w' to 's' to match correct direction
+    'Elbow -': 'w',  # Changed from 's' to 'w' to match correct direction
     'Gripper Open': 'i',
     'Gripper Close': 'o'
 }
