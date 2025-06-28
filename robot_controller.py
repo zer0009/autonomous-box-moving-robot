@@ -44,12 +44,12 @@ KNOWN_WIDTH_PIXELS = None
 ARM_COMMANDS = {
     'Enable Arm': 'z',
     'Disable Arm': 'x',
-    'Base +': 'w',
-    'Base -': 's',
+    'Base +': 'e',  # Changed to 'e' (was 'q') to reverse direction
+    'Base -': 'q',  # Changed to 'q' (was 'e') to reverse direction
     'Shoulder +': 'a',
     'Shoulder -': 'd',
-    'Elbow +': 'q',
-    'Elbow -': 'e',
+    'Elbow +': 'w',  # Using 'w' for Elbow +
+    'Elbow -': 's',  # Using 's' for Elbow -
     'Gripper Open': 'i',
     'Gripper Close': 'o'
 }
@@ -320,7 +320,6 @@ def scan_qr_codes():
                 processing_thread.start()
             
             # Even if no data is decoded, check if a QR code is detected visually
-            # This is a workaround for cases where the QR code is seen but not decoded
             if bbox is not None and len(bbox) > 0:
                 # Convert bbox to a more usable format for the web interface
                 # OpenCV returns bbox as a 3D array with 4 points (corners)
@@ -348,33 +347,15 @@ def scan_qr_codes():
                     # Draw bounding box on the frame for debugging
                     cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
                     
-                    # If data is empty but we have a bounding box, try to manually trigger
-                    # the robot for testing purposes
-                    if not data and last_qr_data is None:
-                        # Generate a test QR data for the detected box
-                        test_data = "BOX_TEST"
-                        cv2.putText(frame, f"{test_data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                        
-                        # Only process if we haven't processed a box recently
-                        if robot_state["status"] == "idle":
-                            print("QR code detected visually but not decoded, using test data")
-                            last_qr_data = test_data
-                            processing_thread = threading.Thread(target=process_qr_code, args=(test_data,))
-                            processing_thread.daemon = True
-                            processing_thread.start()
-                    else:
+                    if data:
                         # Normal case with data
-                        cv2.putText(frame, f"{data or 'Unknown'} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
+                        cv2.putText(frame, f"{data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                     
                     # If this is the first detection, try to calibrate the camera
                     if FOCAL_LENGTH is None:
                         calibrate_camera(width)
-            else:
-                # No QR code detected visually
-                pass
-                
+            
         except Exception as e:
             print(f"QR detection error: {e}")
             
@@ -1626,24 +1607,13 @@ def generate_camera_frames():
                         cv2.putText(frame, text, (int(x), int(y) - 5), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
             except Exception as e:
-                # Just continue if QR detection fails
-                pass
+                print(f"Error detecting QR code in frame: {e}")
                 
-            # Add robot state information to the frame
-            try:
-                # Add status text at the bottom of the frame
-                status_text = f"Status: {robot_state['status']} | Box: {robot_state['carrying_box'] or 'None'}"
-                cv2.rectangle(frame, (0, frame.shape[0] - 30), (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
-                cv2.putText(frame, status_text, (10, frame.shape[0] - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            except:
-                pass
-                
-            # Convert to jpg for streaming
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            # Convert frame to JPEG
+            ret, jpeg = cv2.imencode('.jpg', frame)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
 @app.route('/')
 def index():
@@ -2562,9 +2532,21 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
