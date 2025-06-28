@@ -1104,7 +1104,7 @@ def send_command(cmd_label):
     
     return response
 
-def send_nav_command(cmd_label, duration=None):
+def send_nav_command(cmd_label):
     """Send a command to the ESP32 navigation controller"""
     if not nav_serial_available:
         print(f"ERROR: Navigation serial port not available, can't send '{cmd_label}'")
@@ -1120,18 +1120,8 @@ def send_nav_command(cmd_label, duration=None):
         print(f"Sending navigation command '{cmd_label}' (byte: '{cmd}')")
         nav_ser.write((cmd + '\n').encode())
         
-        # If this is a movement command and duration is specified, wait then stop
-        movement_commands = {'Forward', 'Backward', 'Left', 'Right', 'Rotate CW', 'Rotate CCW'}
-        if duration and cmd_label in movement_commands:
-            # Wait for the specified duration
-            time.sleep(duration)
-            # Send stop command
-            stop_cmd = NAV_COMMANDS['Stop']
-            nav_ser.write((stop_cmd + '\n').encode())
-            print(f"Stopped after {duration} seconds")
-        else:
-            # For non-movement commands or no duration, just wait a bit for response
-            time.sleep(0.2)
+        # Wait a bit longer for response
+        time.sleep(0.2)
         
         # Read response if available
         response_data = ""
@@ -1186,45 +1176,17 @@ def execute_sequence(sequence_name):
         print(f"Command distribution: {command_counts}")
         
         # Execute each command in sequence
-        movement_commands = {'Forward', 'Backward', 'Left', 'Right', 'Rotate CW', 'Rotate CCW'}
-        
         for i, (cmd, delay) in enumerate(sequence):
             print(f"Executing command {i+1}/{len(sequence)}: {cmd} with delay {delay}")
+            response = send_command(cmd)
+            if "Error" in response:
+                update_robot_state(error=f"Command failed: {cmd} - {response}")
+                print(f"ERROR: Command failed: {cmd} - {response}")
+                return f"Sequence {sequence_name} failed: {response}"
             
-            if cmd in NAV_COMMANDS:
-                # For movement commands, send command, wait full duration, then stop
-                if cmd in movement_commands:
-                    # Send the movement command
-                    response = send_nav_command(cmd)
-                    if "Error" in response:
-                        update_robot_state(error=f"Command failed: {cmd} - {response}")
-                        print(f"ERROR: Command failed: {cmd} - {response}")
-                        return f"Sequence {sequence_name} failed: {response}"
-                    
-                    # Wait for the full duration
-                    print(f"Moving for {delay} seconds")
-                    time.sleep(delay)
-                    
-                    # Send stop command and wait a bit to ensure it's processed
-                    print("Sending stop command")
-                    stop_response = send_nav_command('Stop')
-                    time.sleep(0.2)  # Wait for stop to be processed
-                else:
-                    # For non-movement navigation commands (like Enable/Disable)
-                    response = send_nav_command(cmd)
-                    if "Error" in response:
-                        update_robot_state(error=f"Command failed: {cmd} - {response}")
-                        print(f"ERROR: Command failed: {cmd} - {response}")
-                        return f"Sequence {sequence_name} failed: {response}"
-                    time.sleep(delay)
-            else:
-                # For arm commands
-                response = send_command(cmd)
-                if "Error" in response:
-                    update_robot_state(error=f"Command failed: {cmd} - {response}")
-                    print(f"ERROR: Command failed: {cmd} - {response}")
-                    return f"Sequence {sequence_name} failed: {response}"
-                time.sleep(delay)
+            # Wait for the specified delay
+            print(f"Waiting for {delay} seconds")
+            time.sleep(delay)
             
             # Add a small pause between commands for stability
             if i < len(sequence) - 1:
@@ -2578,10 +2540,10 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
-            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
+            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
@@ -2904,56 +2866,18 @@ def sequence_recorder():
                 document.getElementById('delay_display').innerText = value + 's';
             }
 
-            // Function to submit form via AJAX
-            async function submitFormAjax(formData) {
-                try {
-                    const response = await fetch(window.location.href, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (response.ok) {
-                        const text = await response.text();
-                        // Extract message from response if present
-                        const messageMatch = text.match(/<div class="message">(.*?)<\/div>/s);
-                        if (messageMatch) {
-                            const messageDiv = document.querySelector('.message') || document.createElement('div');
-                            messageDiv.className = 'message';
-                            messageDiv.innerHTML = messageMatch[1];
-                            if (!document.querySelector('.message')) {
-                                document.querySelector('.container').insertBefore(messageDiv, document.querySelector('.panel'));
-                            }
-                        }
-                        
-                        // Update recorded commands list if present
-                        const commandsMatch = text.match(/<div id="recorded-commands-list">(.*?)<\/div>\s*<\/div>\s*<\/div>/s);
-                        if (commandsMatch) {
-                            document.getElementById('recorded-commands-list').innerHTML = commandsMatch[1];
-                            // Reinitialize drag and drop
-                            initializeDragAndDrop();
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                }
-            }
-
             // Add time to a command's delay
-            async function addTime(index, amount) {
-                const form = document.querySelector(`form[data-index="${index}"]`);
-                const delayInput = form.querySelector('input[name="new_delay"]');
+            function addTime(index, amount) {
+                const delayInput = document.querySelector(`input[name="new_delay"][data-index="${index}"]`);
                 let currentDelay = parseFloat(delayInput.value);
                 currentDelay += amount;
                 if (currentDelay < 0.1) currentDelay = 0.1;
                 delayInput.value = currentDelay.toFixed(1);
-                
-                const formData = new FormData(form);
-                formData.append('update_delay', '1');
-                await submitFormAjax(formData);
+                document.querySelector(`form[data-index="${index}"]`).submit();
             }
 
-            // Initialize drag and drop functionality
-            function initializeDragAndDrop() {
+            // Initialize drag and drop when the page loads
+            document.addEventListener('DOMContentLoaded', function() {
                 const commandsList = document.getElementById('recorded-commands-list');
                 if (!commandsList) return;
 
@@ -2991,65 +2915,29 @@ def sequence_recorder():
                         }
                     });
 
-                    item.addEventListener('dragend', async function() {
-                        // Get the new order and submit it via AJAX
+                    item.addEventListener('dragend', function() {
+                        // Get the new order and submit it
                         const newOrder = Array.from(commandsList.children).map(item => {
                             return {
                                 index: item.getAttribute('data-original-index'),
+                                command: item.getAttribute('data-command'),
                                 delay: item.querySelector('input[type="number"]').value
                             };
                         });
                         
-                        const formData = new FormData();
-                        formData.append('reorder_commands', JSON.stringify(newOrder));
-                        await submitFormAjax(formData);
-                    });
-                });
-
-                // Add AJAX form submission for delay updates and remove buttons
-                document.querySelectorAll('.command-item form').forEach(form => {
-                    form.addEventListener('submit', async function(e) {
-                        e.preventDefault();
-                        await submitFormAjax(new FormData(this));
-                    });
-                });
-            }
-
-            // Initialize everything when the page loads
-            document.addEventListener('DOMContentLoaded', function() {
-                initializeDragAndDrop();
-                
-                // Add AJAX form submission for all forms
-                document.querySelectorAll('form').forEach(form => {
-                    form.addEventListener('submit', async function(e) {
-                        e.preventDefault(); // Prevent default form submission
+                        // Create a hidden form to submit the new order
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.style.display = 'none';
                         
-                        // Handle confirmation dialogs
-                        const clearButton = form.querySelector('[name="clear_commands"]');
-                        const testCurrentButton = form.querySelector('[name="test_current"]');
-                        const deleteButton = form.querySelector('[name="delete_sequence"]');
-                        const testSequenceButton = form.querySelector('[name="test_sequence"]');
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'reorder_commands';
+                        input.value = JSON.stringify(newOrder);
                         
-                        if (clearButton && !confirmClear()) {
-                            return;
-                        }
-                        if (testCurrentButton && !confirm('Test current sequence? The robot will execute all recorded commands.')) {
-                            return;
-                        }
-                        if (deleteButton) {
-                            const sequenceName = form.querySelector('[name="delete_name"]').value;
-                            if (!confirmDelete(sequenceName)) {
-                                return;
-                            }
-                        }
-                        if (testSequenceButton) {
-                            const sequenceName = form.querySelector('[name="test_name"]').value;
-                            if (!confirmTest(sequenceName)) {
-                                return;
-                            }
-                        }
-                        
-                        await submitFormAjax(new FormData(form));
+                        form.appendChild(input);
+                        document.body.appendChild(form);
+                        form.submit();
                     });
                 });
             });
@@ -3108,8 +2996,7 @@ def sequence_recorder():
                         <div class="command-controls">
                             <form method="post" style="display: inline;" data-index="{i}">
                                 <input type="hidden" name="command_index" value="{i}">
-                                <input type="number" name="new_delay" value="{delay}" min="0.1" max="10.0" step="0.1" style="width: 60px;" 
-                                       onchange="this.form.dispatchEvent(new Event('submit'))">s
+                                <input type="number" name="new_delay" value="{delay}" min="0.1" max="10.0" step="0.1" style="width: 60px;">s
                                 <button type="submit" name="update_delay" value="1" class="edit-btn" style="padding: 2px 5px; font-size: 12px;">Update</button>
                                 <button type="submit" name="remove_command" value="1" class="remove-btn">Remove</button>
                             </form>
