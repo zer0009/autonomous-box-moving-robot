@@ -78,6 +78,28 @@ try:
     print(f"Trying to connect to arm ESP32 on {ARM_SERIAL_PORT}...")
     arm_ser = serial.Serial(ARM_SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for ESP32 to reset
+    
+    # Clear any startup messages and reset buffers
+    arm_ser.reset_input_buffer()
+    arm_ser.reset_output_buffer()
+    
+    # Send initialization command to enable the arm
+    print("Sending initialization command to arm ESP32...")
+    arm_ser.write(b'z\n')  # Enable arm command
+    time.sleep(0.5)
+    
+    # Check for response
+    response = ""
+    start_time = time.time()
+    while time.time() - start_time < 2:  # Wait up to 2 seconds for response
+        if arm_ser.in_waiting:
+            line = arm_ser.readline().decode(errors='ignore').strip()
+            print(f"Arm ESP32 response: {line}")
+            response += line
+            if "ENABLED" in response:
+                break
+        time.sleep(0.1)
+    
     arm_serial_available = True
     print(f"Connected to arm ESP32 on {ARM_SERIAL_PORT}")
 except Exception as e:
@@ -86,6 +108,28 @@ except Exception as e:
         print(f"Trying alternative port {ARM_SERIAL_PORT_ALT} for arm ESP32...")
         arm_ser = serial.Serial(ARM_SERIAL_PORT_ALT, BAUDRATE, timeout=1)
         time.sleep(2)  # Wait for ESP32 to reset
+        
+        # Clear any startup messages and reset buffers
+        arm_ser.reset_input_buffer()
+        arm_ser.reset_output_buffer()
+        
+        # Send initialization command to enable the arm
+        print("Sending initialization command to arm ESP32...")
+        arm_ser.write(b'z\n')  # Enable arm command
+        time.sleep(0.5)
+        
+        # Check for response
+        response = ""
+        start_time = time.time()
+        while time.time() - start_time < 2:  # Wait up to 2 seconds for response
+            if arm_ser.in_waiting:
+                line = arm_ser.readline().decode(errors='ignore').strip()
+                print(f"Arm ESP32 response: {line}")
+                response += line
+                if "ENABLED" in response:
+                    break
+            time.sleep(0.1)
+        
         arm_serial_available = True
         print(f"Connected to arm ESP32 on {ARM_SERIAL_PORT_ALT}")
     except Exception as e2:
@@ -99,6 +143,11 @@ try:
     print(f"Trying to connect to navigation ESP32 on {NAV_SERIAL_PORT}...")
     nav_ser = serial.Serial(NAV_SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for ESP32 to reset
+    
+    # Clear any startup messages and reset buffers
+    nav_ser.reset_input_buffer()
+    nav_ser.reset_output_buffer()
+    
     nav_serial_available = True
     print(f"Connected to navigation ESP32 on {NAV_SERIAL_PORT}")
 except Exception as e:
@@ -107,6 +156,11 @@ except Exception as e:
         print(f"Trying alternative port {NAV_SERIAL_PORT_ALT} for navigation ESP32...")
         nav_ser = serial.Serial(NAV_SERIAL_PORT_ALT, BAUDRATE, timeout=1)
         time.sleep(2)  # Wait for ESP32 to reset
+        
+        # Clear any startup messages and reset buffers
+        nav_ser.reset_input_buffer()
+        nav_ser.reset_output_buffer()
+        
         nav_serial_available = True
         print(f"Connected to navigation ESP32 on {NAV_SERIAL_PORT_ALT}")
     except Exception as e2:
@@ -2048,12 +2102,30 @@ def sequence_analysis_page():
 
 def cleanup():
     """Clean up resources before exit"""
+    print("Cleaning up resources...")
     if camera_running:
         release_camera()
+    
     if arm_serial_available:
-        arm_ser.close()
+        try:
+            print("Disabling arm before exit...")
+            arm_ser.write(b'x\n')  # Disable arm command
+            time.sleep(0.5)
+            arm_ser.close()
+            print("Arm serial connection closed")
+        except Exception as e:
+            print(f"Error during arm cleanup: {e}")
+    
     if nav_serial_available:
-        nav_ser.close()
+        try:
+            print("Stopping navigation before exit...")
+            nav_ser.write(b'x\n')  # Stop command
+            time.sleep(0.5)
+            nav_ser.close()
+            print("Navigation serial connection closed")
+        except Exception as e:
+            print(f"Error during navigation cleanup: {e}")
+    
     qr_generator.close()
 
 # Add this function after the other utility functions
