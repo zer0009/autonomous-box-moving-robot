@@ -2578,10 +2578,10 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
-            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
@@ -3019,14 +3019,37 @@ def sequence_recorder():
             document.addEventListener('DOMContentLoaded', function() {
                 initializeDragAndDrop();
                 
-                // Add AJAX form submission for all command forms
-                document.querySelectorAll('.commands form').forEach(form => {
+                // Add AJAX form submission for all forms
+                document.querySelectorAll('form').forEach(form => {
                     form.addEventListener('submit', async function(e) {
-                        if (!is_recording) {
-                            return; // Let normal form submission handle non-recording state
+                        e.preventDefault(); // Prevent default form submission
+                        
+                        // Handle confirmation dialogs
+                        const clearButton = form.querySelector('[name="clear_commands"]');
+                        const testCurrentButton = form.querySelector('[name="test_current"]');
+                        const deleteButton = form.querySelector('[name="delete_sequence"]');
+                        const testSequenceButton = form.querySelector('[name="test_sequence"]');
+                        
+                        if (clearButton && !confirmClear()) {
+                            return;
                         }
-                        e.preventDefault();
-                        await submitFormAjax(new FormData(this));
+                        if (testCurrentButton && !confirm('Test current sequence? The robot will execute all recorded commands.')) {
+                            return;
+                        }
+                        if (deleteButton) {
+                            const sequenceName = form.querySelector('[name="delete_name"]').value;
+                            if (!confirmDelete(sequenceName)) {
+                                return;
+                            }
+                        }
+                        if (testSequenceButton) {
+                            const sequenceName = form.querySelector('[name="test_name"]').value;
+                            if (!confirmTest(sequenceName)) {
+                                return;
+                            }
+                        }
+                        
+                        await submitFormAjax(new FormData(form));
                     });
                 });
             });
