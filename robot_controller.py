@@ -2196,7 +2196,6 @@ SEQUENCES_FILE = 'sequences.json'
 recording_commands = []
 is_recording = False
 
-# Add this function after debug_serial_connections()
 def save_sequences_to_file():
     """Save all sequences to a JSON file"""
     try:
@@ -2208,7 +2207,7 @@ def save_sequences_to_file():
         return False
 
 def load_sequences_from_file():
-    """Load sequences from JSON file if it exists, otherwise initialize with defaults"""
+    """Load sequences from JSON file if it exists"""
     global SEQUENCES
     
     # Define default sequences that will be used if no JSON file exists
@@ -2538,10 +2537,12 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
-            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
@@ -2637,7 +2638,6 @@ def load_sequences_from_file():
 # Try to load sequences at startup
 load_sequences_from_file()
 
-# Add this route after the other routes
 @app.route('/sequence_recorder', methods=['GET', 'POST'])
 def sequence_recorder():
     """Page for recording and managing sequences"""
@@ -2653,7 +2653,28 @@ def sequence_recorder():
         message = f"Loaded sequence '{editing_sequence}' for editing. Press Start Recording to modify it."
     
     if request.method == 'POST':
-        if 'start_recording' in request.form:
+        if 'reorder_commands' in request.form:
+            try:
+                # Get the new order from the form data
+                new_order = json.loads(request.form['reorder_commands'])
+                # Create a new list with the reordered commands
+                reordered_commands = []
+                for item in new_order:
+                    original_index = int(item['index'])
+                    if 0 <= original_index < len(recording_commands):
+                        command = recording_commands[original_index][0]
+                        delay = float(item['delay'])
+                        reordered_commands.append((command, delay))
+                recording_commands = reordered_commands
+                # Save changes if editing an existing sequence
+                if editing_sequence:
+                    SEQUENCES[editing_sequence] = recording_commands.copy()
+                    save_sequences_to_file()
+                message = "Command order updated successfully."
+            except Exception as e:
+                message = f"Error reordering commands: {str(e)}"
+        
+        elif 'start_recording' in request.form:
             is_recording = True
             message = "Recording started. Use the controls below to record commands."
         
@@ -2690,11 +2711,32 @@ def sequence_recorder():
                 index = int(request.form.get('command_index', -1))
                 if 0 <= index < len(recording_commands):
                     removed_cmd = recording_commands.pop(index)
+                    # Save changes if editing an existing sequence
+                    if editing_sequence:
+                        SEQUENCES[editing_sequence] = recording_commands.copy()
+                        save_sequences_to_file()
                     message = f"Removed command: {removed_cmd[0]}"
                 else:
                     message = "Invalid command index."
             except ValueError:
                 message = "Invalid command index format."
+        
+        elif 'update_delay' in request.form:
+            try:
+                index = int(request.form.get('command_index', -1))
+                new_delay = float(request.form.get('new_delay', 0.5))
+                if 0 <= index < len(recording_commands):
+                    cmd = recording_commands[index][0]
+                    recording_commands[index] = (cmd, new_delay)
+                    # Save changes if editing an existing sequence
+                    if editing_sequence:
+                        SEQUENCES[editing_sequence] = recording_commands.copy()
+                        save_sequences_to_file()
+                    message = f"Updated delay for command {index+1}: {cmd} to {new_delay}s"
+                else:
+                    message = "Invalid command index."
+            except ValueError:
+                message = "Invalid delay or index format."
         
         elif 'test_sequence' in request.form:
             sequence_name = request.form.get('test_name', '')
@@ -2763,19 +2805,6 @@ def sequence_recorder():
                 delay = float(request.form.get('delay', 0.5))
                 recording_commands.append((cmd_label, delay))
                 message = f"Recorded navigation command: {cmd_label} with delay {delay}s"
-        
-        elif 'update_delay' in request.form:
-            try:
-                index = int(request.form.get('command_index', -1))
-                new_delay = float(request.form.get('new_delay', 0.5))
-                if 0 <= index < len(recording_commands):
-                    cmd = recording_commands[index][0]
-                    recording_commands[index] = (cmd, new_delay)
-                    message = f"Updated delay for command {index+1}: {cmd} to {new_delay}s"
-                else:
-                    message = "Invalid command index."
-            except ValueError:
-                message = "Invalid delay or index format."
     
     # Create HTML for the page
     html = """
@@ -2798,14 +2827,18 @@ def sequence_recorder():
             .test-button { background-color: #ffc107; font-weight: bold; }
             .message { margin: 20px; padding: 10px; background-color: #ffeeba; border-radius: 5px; }
             .recording { color: red; font-weight: bold; animation: blink 1s infinite; }
-            .recorded-commands { text-align: left; margin: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; max-height: 200px; overflow-y: auto; }
+            .recorded-commands { text-align: left; margin: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; max-height: 400px; overflow-y: auto; }
             .sequence-list { text-align: left; margin: 10px; max-height: 200px; overflow-y: auto; }
             .sequence-item { margin: 5px 0; padding: 5px; background-color: #e9ecef; border-radius: 3px; display: flex; justify-content: space-between; }
             .delete-btn { background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; }
             .edit-btn { background-color: #0d6efd; color: white; border: none; border-radius: 3px; cursor: pointer; }
             .test-btn { background-color: #ffc107; border: none; border-radius: 3px; cursor: pointer; }
-            .command-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .command-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 8px; background: white; border: 1px solid #ddd; cursor: move; }
+            .command-item:hover { background: #f0f0f0; }
+            .command-drag-handle { cursor: move; padding: 0 10px; color: #666; }
+            .command-controls { display: flex; align-items: center; gap: 5px; }
             .remove-btn { background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; font-size: 12px; }
+            .add-time-btn { background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; font-size: 12px; }
             .test-results { text-align: left; margin: 10px; padding: 10px; background-color: #e9ecef; border-radius: 5px; max-height: 300px; overflow-y: auto; }
             input[type="text"], input[type="number"] { padding: 8px; margin: 5px; }
             @keyframes blink {
@@ -2832,6 +2865,82 @@ def sequence_recorder():
                 document.getElementById('nav_delay').value = value;
                 document.getElementById('delay_display').innerText = value + 's';
             }
+
+            // Add time to a command's delay
+            function addTime(index, amount) {
+                const delayInput = document.querySelector(`input[name="new_delay"][data-index="${index}"]`);
+                let currentDelay = parseFloat(delayInput.value);
+                currentDelay += amount;
+                if (currentDelay < 0.1) currentDelay = 0.1;
+                delayInput.value = currentDelay.toFixed(1);
+                document.querySelector(`form[data-index="${index}"]`).submit();
+            }
+
+            // Initialize drag and drop when the page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                const commandsList = document.getElementById('recorded-commands-list');
+                if (!commandsList) return;
+
+                let draggedItem = null;
+                let draggedIndex = null;
+
+                // Add event listeners to all command items
+                document.querySelectorAll('.command-item').forEach((item, index) => {
+                    item.setAttribute('draggable', true);
+                    
+                    item.addEventListener('dragstart', function(e) {
+                        draggedItem = item;
+                        draggedIndex = index;
+                        setTimeout(() => item.classList.add('dragging'), 0);
+                    });
+
+                    item.addEventListener('dragend', function() {
+                        draggedItem = null;
+                        draggedIndex = null;
+                        item.classList.remove('dragging');
+                    });
+
+                    item.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        if (this === draggedItem) return;
+                        
+                        const rect = this.getBoundingClientRect();
+                        const midY = (rect.top + rect.bottom) / 2;
+                        const mouseY = e.clientY;
+                        
+                        if (mouseY < midY) {
+                            this.parentNode.insertBefore(draggedItem, this);
+                        } else {
+                            this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                        }
+                    });
+
+                    item.addEventListener('dragend', function() {
+                        // Get the new order and submit it
+                        const newOrder = Array.from(commandsList.children).map(item => {
+                            return {
+                                index: item.getAttribute('data-original-index'),
+                                command: item.getAttribute('data-command'),
+                                delay: item.querySelector('input[type="number"]').value
+                            };
+                        });
+                        
+                        // Create a hidden form to submit the new order
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.style.display = 'none';
+                        
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'reorder_commands';
+                        input.value = JSON.stringify(newOrder);
+                        
+                        form.appendChild(input);
+                        document.body.appendChild(form);
+                        form.submit();
+                    });
+                });
+            });
         </script>
     </head>
     <body>
@@ -2875,27 +2984,34 @@ def sequence_recorder():
                 
                 <h3>Recorded Commands ({len(recording_commands)})</h3>
                 <div class="recorded-commands">
+                    <div id="recorded-commands-list">
     """
     
-    # Show recorded commands with remove buttons and delay editing
+    # Show recorded commands with remove buttons, delay editing, and drag handles
     for i, (cmd, delay) in enumerate(recording_commands):
         html += f"""
-                    <div class="command-item">
-                        <div>{i+1}. {cmd} (delay: {delay}s)</div>
-                        <div>
-                            <form method="post" style="display: inline;">
+                    <div class="command-item" data-original-index="{i}" data-command="{cmd}">
+                        <div class="command-drag-handle">☰</div>
+                        <div>{i+1}. {cmd}</div>
+                        <div class="command-controls">
+                            <form method="post" style="display: inline;" data-index="{i}">
                                 <input type="hidden" name="command_index" value="{i}">
-                                <input type="number" name="new_delay" value="{delay}" min="0.1" max="5.0" step="0.1" style="width: 60px;">
-                                <button type="submit" name="update_delay" class="edit-btn" style="padding: 2px 5px; font-size: 12px;">Update</button>
-                                <button type="submit" name="remove_command" class="remove-btn">Remove</button>
+                                <input type="number" name="new_delay" value="{delay}" min="0.1" max="10.0" step="0.1" style="width: 60px;">s
+                                <button type="submit" name="update_delay" value="1" class="edit-btn" style="padding: 2px 5px; font-size: 12px;">Update</button>
+                                <button type="submit" name="remove_command" value="1" class="remove-btn">Remove</button>
                             </form>
+                            <button onclick="addTime({i}, 0.1)" class="add-time-btn">+0.1s</button>
+                            <button onclick="addTime({i}, 0.5)" class="add-time-btn">+0.5s</button>
                         </div>
                     </div>
         """
     
     html += """
+                    </div>
                 </div>
-                
+    """
+    
+    html += """
                 <h3>Save Sequence</h3>
                 <form method="post">
     """
@@ -3014,6 +3130,30 @@ def sequence_recorder():
         </div>
     </body>
     </html>
+    """
+    
+    # Add JavaScript for handling delay updates
+    html += """
+        <script>
+            function addTime(index, amount) {
+                const form = document.querySelector(`form[data-index="${index}"]`);
+                const delayInput = form.querySelector('input[name="new_delay"]');
+                let currentDelay = parseFloat(delayInput.value);
+                currentDelay += amount;
+                if (currentDelay < 0.1) currentDelay = 0.1;
+                delayInput.value = currentDelay.toFixed(1);
+                
+                // Create and append hidden input for update_delay
+                const updateInput = document.createElement('input');
+                updateInput.type = 'hidden';
+                updateInput.name = 'update_delay';
+                updateInput.value = '1';
+                form.appendChild(updateInput);
+                
+                // Submit the form
+                form.submit();
+            }
+        </script>
     """
     
     return html
