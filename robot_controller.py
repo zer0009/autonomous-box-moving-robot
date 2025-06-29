@@ -227,32 +227,70 @@ if nav_serial_available:
 def get_camera():
     """Initialize camera if not already done"""
     global camera
-    if camera is None:
-        # Try different camera indices - expanded range to include higher indices
-        for camera_index in [0, 1, 2]:
-            try:
-                print(f"Trying camera at index {camera_index}...")
-                cam = cv2.VideoCapture(camera_index)
-                if cam.isOpened():
-                    ret, test_frame = cam.read()
-                    if ret and test_frame is not None:
-                        camera = cam
-                        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                        print(f"Connected to camera at index {camera_index}")
-                        print(f"Camera resolution: {test_frame.shape[1]}x{test_frame.shape[0]}")
-                        return camera
-                    else:
-                        print(f"Camera at index {camera_index} opened but couldn't read frame")
-                        cam.release()
+    print("Attempting to get camera...")
+    
+    if camera is not None:
+        # Test if existing camera is still working
+        try:
+            print("Testing existing camera connection...")
+            ret, _ = camera.read()
+            if ret:
+                print("Existing camera connection is working")
+                return camera
+            else:
+                print("Existing camera connection failed, attempting to reconnect...")
+                release_camera()
+        except Exception as e:
+            print(f"Error with existing camera: {e}")
+            release_camera()
+    
+    # Try different camera indices
+    for camera_index in [0, 1, 2]:
+        try:
+            print(f"Trying camera at index {camera_index}...")
+            cam = cv2.VideoCapture(camera_index)
+            if not cam.isOpened():
+                print(f"Failed to open camera at index {camera_index}")
+                continue
+                
+            print(f"Camera opened at index {camera_index}, testing connection...")
+            # Test multiple frames to ensure stable connection
+            stable = True
+            for i in range(3):
+                ret, test_frame = cam.read()
+                if not ret or test_frame is None:
+                    print(f"Failed to read test frame {i+1}/3")
+                    stable = False
+                    break
                 else:
-                    print(f"Failed to open camera at index {camera_index}")
-            except Exception as e:
-                print(f"Error with camera at index {camera_index}: {e}")
-        
-        # If we get here, we failed to find a working camera
-        print("Error: Could not find a working camera")
-        camera = None
+                    print(f"Successfully read test frame {i+1}/3")
+                time.sleep(0.1)
+            
+            if stable:
+                camera = cam
+                # Try to set resolution, but don't fail if not supported
+                print("Setting camera resolution...")
+                camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                # Read actual resolution
+                actual_width = camera.get(cv2.CAP_PROP_FRAME_WIDTH)
+                actual_height = camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                print(f"Connected to camera at index {camera_index}")
+                print(f"Camera resolution: {actual_width}x{actual_height}")
+                return camera
+            else:
+                print(f"Camera at index {camera_index} connection not stable")
+                cam.release()
+        except Exception as e:
+            print(f"Error with camera at index {camera_index}: {e}")
+            if cam:
+                try:
+                    cam.release()
+                except:
+                    pass
+    
+    print("Error: Could not find a working camera")
+    camera = None
     return camera
 
 def release_camera():
@@ -293,73 +331,99 @@ def calibrate_camera(pixel_width, known_distance=KNOWN_DISTANCE):
 def scan_qr_codes():
     """Thread function to continuously scan for QR codes"""
     global camera_running, last_qr_data, last_qr_bbox
+    
+    # Initialize camera
     camera = get_camera()
     if not camera:
+        print("Failed to initialize camera for QR scanning")
         return
     
     qr_detector = cv2.QRCodeDetector()
     camera_running = True
+    last_frame_time = time.time()
+    frame_interval = 1.0 / 30  # Target 30 FPS
+    consecutive_failures = 0
+    max_failures = 5  # Maximum number of consecutive failures before reconnecting
     
     while camera_running:
-        ret, frame = camera.read()
-        if not ret:
+        current_time = time.time()
+        if current_time - last_frame_time < frame_interval:
+            time.sleep(0.001)  # Small sleep to prevent CPU overuse
             continue
             
-        # Try to detect QR code
+        # Read frame
         try:
-            data, bbox, _ = qr_detector.detectAndDecode(frame)
-            if data:
-                print(f"QR Code detected: {data}")
-                # Always update last_qr_data and process it
-                last_qr_data = data
+            ret, frame = camera.read()
+            if not ret or frame is None:
+                consecutive_failures += 1
+                print(f"Failed to read frame ({consecutive_failures}/{max_failures})")
+                if consecutive_failures >= max_failures:
+                    print("Too many consecutive failures, attempting to reconnect camera...")
+                    release_camera()
+                    camera = get_camera()
+                    if not camera:
+                        print("Failed to reconnect camera, stopping QR scanning")
+                        camera_running = False
+                        break
+                    consecutive_failures = 0
+                continue
+            
+            # Reset failure counter on successful frame read
+            consecutive_failures = 0
+            last_frame_time = current_time
                 
-                # Process the QR code data in the main thread
-                # We'll use threading to avoid blocking the camera thread
-                processing_thread = threading.Thread(target=process_qr_code, args=(data,))
-                processing_thread.daemon = True
-                processing_thread.start()
-            
-            # Even if no data is decoded, check if a QR code is detected visually
-            if bbox is not None and len(bbox) > 0:
-                # Convert bbox to a more usable format for the web interface
-                # OpenCV returns bbox as a 3D array with 4 points (corners)
-                points = bbox[0]
-                if len(points) == 4:
-                    # Calculate the bounding rectangle that contains all points
-                    x_coords = [p[0] for p in points]
-                    y_coords = [p[1] for p in points]
-                    x = min(x_coords)
-                    y = min(y_coords)
-                    width = max(x_coords) - x
-                    height = max(y_coords) - y
-                    
-                    # Calculate distance based on QR code width
-                    distance = calculate_distance(width)
-                    
-                    last_qr_bbox = {
-                        "x": int(x),
-                        "y": int(y),
-                        "width": int(width),
-                        "height": int(height),
-                        "distance": round(distance, 2)  # Distance in cm
-                    }
-                    
-                    # Draw bounding box on the frame for debugging
-                    cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
-                    
-                    if data:
-                        # Normal case with data
-                        cv2.putText(frame, f"{data} - {round(distance, 2)}cm", (int(x), int(y) - 10), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                    
-                    # If this is the first detection, try to calibrate the camera
-                    if FOCAL_LENGTH is None:
-                        calibrate_camera(width)
-            
+            # Try to detect QR code
+            try:
+                data, bbox, _ = qr_detector.detectAndDecode(frame)
+                if data:
+                    print(f"QR Code detected: {data}")
+                    # Only update if data is different or significant time has passed
+                    if data != last_qr_data or (current_time - last_frame_time > 1.0):
+                        last_qr_data = data
+                        # Process the QR code data in the main thread
+                        processing_thread = threading.Thread(target=process_qr_code, args=(data,))
+                        processing_thread.daemon = True
+                        processing_thread.start()
+                
+                # Update bounding box information if QR code is detected
+                if bbox is not None and len(bbox) > 0:
+                    points = bbox[0]
+                    if len(points) == 4:
+                        x_coords = [p[0] for p in points]
+                        y_coords = [p[1] for p in points]
+                        x = min(x_coords)
+                        y = min(y_coords)
+                        width = max(x_coords) - x
+                        height = max(y_coords) - y
+                        
+                        distance = calculate_distance(width)
+                        
+                        last_qr_bbox = {
+                            "x": int(x),
+                            "y": int(y),
+                            "width": int(width),
+                            "height": int(height),
+                            "distance": round(distance, 2)
+                        }
+                
+            except Exception as e:
+                print(f"QR detection error: {e}")
+                # Don't count QR detection errors as camera failures
+                time.sleep(0.1)  # Add small delay on error
+                
         except Exception as e:
-            print(f"QR detection error: {e}")
-            
-        time.sleep(0.1)  # Small delay to reduce CPU usage
+            print(f"Camera error: {e}")
+            consecutive_failures += 1
+            if consecutive_failures >= max_failures:
+                print("Too many consecutive failures, attempting to reconnect camera...")
+                release_camera()
+                camera = get_camera()
+                if not camera:
+                    print("Failed to reconnect camera, stopping QR scanning")
+                    camera_running = False
+                    break
+                consecutive_failures = 0
+            time.sleep(0.1)  # Add small delay on error
 
 def select_sequence_for_box(box_info):
     """Select appropriate sequence based on box properties"""
@@ -1427,34 +1491,84 @@ AUTO_HTML = """
         .camera-config { margin: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; }
         .detection-box { position: absolute; border: 3px solid #00ff00; display: none; }
         .detection-text { position: absolute; background-color: rgba(0, 255, 0, 0.7); color: white; padding: 5px; font-size: 14px; display: none; }
+        .error { color: red; }
+        .success { color: green; }
+        #status { padding: 10px; margin: 10px; border-radius: 5px; }
+        .loading { cursor: wait; opacity: 0.7; }
     </style>
     <script>
+        let cameraStarted = false;
+        
+        function updateStatus(message, isError = false) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = isError ? 'error' : 'success';
+            statusElement.innerText = message;
+        }
+        
+        function setLoading(loading) {
+            document.body.className = loading ? 'loading' : '';
+            const buttons = document.getElementsByTagName('button');
+            for (let button of buttons) {
+                button.disabled = loading;
+            }
+        }
+        
         function startCamera() {
+            setLoading(true);
+            updateStatus('Starting camera...');
+            
             fetch('/start_camera')
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('status').innerText = data.status;
-                    if (data.status === 'Camera started') {
+                    if (data.success) {
+                        cameraStarted = true;
                         document.getElementById('camera_img').src = "/video_feed";
+                        updateStatus(data.status);
+                    } else {
+                        updateStatus(data.status, true);
                     }
+                })
+                .catch(error => {
+                    updateStatus('Error starting camera: ' + error, true);
+                })
+                .finally(() => {
+                    setLoading(false);
                 });
         }
         
         function stopCamera() {
+            setLoading(true);
+            updateStatus('Stopping camera...');
+            
             fetch('/stop_camera')
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('status').innerText = data.status;
+                    cameraStarted = false;
                     document.getElementById('camera_img').src = "";
+                    updateStatus(data.status);
+                    
+                    // Clear QR detection
+                    document.getElementById('qr_data').innerText = 'None';
+                    document.getElementById('detection-box').style.display = 'none';
+                    document.getElementById('detection-text').style.display = 'none';
+                })
+                .catch(error => {
+                    updateStatus('Error stopping camera: ' + error, true);
+                })
+                .finally(() => {
+                    setLoading(false);
                 });
         }
         
         function setCamera() {
             const cameraDevice = document.getElementById('camera_device').value;
             if (!cameraDevice) {
-                alert('Please enter a camera device');
+                updateStatus('Please enter a camera device', true);
                 return;
             }
+            
+            setLoading(true);
+            updateStatus('Setting camera device...');
             
             fetch('/set_camera', {
                 method: 'POST',
@@ -1465,17 +1579,29 @@ AUTO_HTML = """
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('status').innerText = data.status;
-                alert(data.status);
+                updateStatus(data.status);
+                if (cameraStarted) {
+                    // Restart camera if it was running
+                    stopCamera().then(() => startCamera());
+                }
+            })
+            .catch(error => {
+                updateStatus('Error setting camera: ' + error, true);
+            })
+            .finally(() => {
+                setLoading(false);
             });
         }
         
         function calibrateCamera() {
             const knownDistance = document.getElementById('known_distance').value;
             if (!knownDistance) {
-                alert('Please enter a known distance in cm');
+                updateStatus('Please enter a known distance in cm', true);
                 return;
             }
+            
+            setLoading(true);
+            updateStatus('Calibrating camera...');
             
             fetch('/calibrate_camera', {
                 method: 'POST',
@@ -1486,12 +1612,19 @@ AUTO_HTML = """
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('status').innerText = data.status;
-                alert(data.status);
+                updateStatus(data.status);
+            })
+            .catch(error => {
+                updateStatus('Error calibrating camera: ' + error, true);
+            })
+            .finally(() => {
+                setLoading(false);
             });
         }
         
         function checkQrStatus() {
+            if (!cameraStarted) return;
+            
             fetch('/qr_status')
                 .then(response => response.json())
                 .then(data => {
@@ -1513,8 +1646,16 @@ AUTO_HTML = """
                             text.innerText = data.qr_data;
                             text.style.display = 'block';
                         }
+                    } else {
+                        document.getElementById('qr_data').innerText = 'None';
+                        document.getElementById('detection-box').style.display = 'none';
+                        document.getElementById('detection-text').style.display = 'none';
                     }
+                })
+                .catch(error => {
+                    console.error('Error checking QR status:', error);
                 });
+            
             setTimeout(checkQrStatus, 1000);
         }
         
@@ -1548,7 +1689,7 @@ AUTO_HTML = """
                 <input type="number" id="known_distance" placeholder="Known distance (cm)">
                 <button onclick="calibrateCamera()">Calibrate</button>
             </div>
-            <p id="status">Camera inactive</p>
+            <p id="status" class="success">Camera inactive</p>
         </div>
         
         <div class="qr-data">
@@ -1562,58 +1703,106 @@ AUTO_HTML = """
 
 def generate_camera_frames():
     """Generate frames from camera for streaming"""
+    global camera_running
+    
+    # Initialize camera
     camera = get_camera()
     if not camera:
+        print("Failed to initialize camera for video feed")
         return
         
     qr_detector = cv2.QRCodeDetector()
+    consecutive_failures = 0
+    max_failures = 5
+    frame_interval = 1.0 / 30  # Target 30 FPS
+    last_frame_time = time.time()
     
     while True:
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
+        try:
+            current_time = time.time()
+            if current_time - last_frame_time < frame_interval:
+                time.sleep(0.001)  # Small sleep to prevent CPU overuse
+                continue
+                
+            success, frame = camera.read()
+            if not success or frame is None:
+                consecutive_failures += 1
+                print(f"Failed to read frame for video feed ({consecutive_failures}/{max_failures})")
+                if consecutive_failures >= max_failures:
+                    print("Too many consecutive failures, attempting to reconnect camera...")
+                    release_camera()
+                    camera = get_camera()
+                    if not camera:
+                        print("Failed to reconnect camera, stopping video feed")
+                        break
+                    consecutive_failures = 0
+                time.sleep(0.1)
+                continue
+            
+            # Reset failure counter on successful frame read
+            consecutive_failures = 0
+            last_frame_time = current_time
+            
             # Try to detect QR codes in the frame for visualization
             try:
                 data, bbox, _ = qr_detector.detectAndDecode(frame)
                 if data and bbox is not None and len(bbox) > 0:
-                    # Draw bounding box and text on the frame
                     points = bbox[0]
                     if len(points) == 4:
                         # Draw green polygon around QR code
-                        cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
-                        
-                        # Calculate distance
-                        x_coords = [p[0] for p in points]
-                        y_coords = [p[1] for p in points]
-                        x = min(x_coords)
-                        y = min(y_coords)
-                        width = max(x_coords) - x
-                        height = max(y_coords) - y
-                        
-                        distance = calculate_distance(width)
-                        
-                        # Add text label with distance
-                        text = f"{data} - {round(distance, 2)}cm"
-                        
-                        # Draw background for text
-                        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-                        cv2.rectangle(frame, 
-                                     (int(x), int(y) - text_size[1] - 10),
-                                     (int(x) + text_size[0], int(y)),
-                                     (0, 255, 0), -1)
-                        
-                        # Draw text
-                        cv2.putText(frame, text, (int(x), int(y) - 5), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                        try:
+                            cv2.polylines(frame, [np.int32(points)], True, (0, 255, 0), 2)
+                            
+                            # Calculate distance
+                            x_coords = [p[0] for p in points]
+                            y_coords = [p[1] for p in points]
+                            x = min(x_coords)
+                            y = min(y_coords)
+                            width = max(x_coords) - x
+                            
+                            distance = calculate_distance(width)
+                            
+                            # Add text label with distance
+                            text = f"{data} - {round(distance, 2)}cm"
+                            
+                            # Draw background for text
+                            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                            cv2.rectangle(frame, 
+                                        (int(x), int(y) - text_size[1] - 10),
+                                        (int(x) + text_size[0], int(y)),
+                                        (0, 255, 0), -1)
+                            
+                            # Draw text
+                            cv2.putText(frame, text, (int(x), int(y) - 5), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                        except Exception as e:
+                            print(f"Error drawing QR visualization: {e}")
             except Exception as e:
-                print(f"Error detecting QR code in frame: {e}")
+                print(f"Error detecting QR code in video frame: {e}")
                 
             # Convert frame to JPEG
-            ret, jpeg = cv2.imencode('.jpg', frame)
-            if ret:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            try:
+                ret, jpeg = cv2.imencode('.jpg', frame)
+                if ret:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                else:
+                    print("Failed to encode frame to JPEG")
+            except Exception as e:
+                print(f"Error encoding frame: {e}")
+                
+        except Exception as e:
+            print(f"Camera error in video feed: {e}")
+            consecutive_failures += 1
+            if consecutive_failures >= max_failures:
+                print("Too many consecutive failures, attempting to reconnect camera...")
+                release_camera()
+                camera = get_camera()
+                if not camera:
+                    print("Failed to reconnect camera, stopping video feed")
+                    break
+                consecutive_failures = 0
+            time.sleep(0.1)
 
 @app.route('/')
 def index():
@@ -1665,15 +1854,30 @@ def start_camera():
     """Start the camera and QR code scanning"""
     global camera_thread, camera_running
     
-    if camera_running:
-        return jsonify({"status": "Camera already running"})
-    
-    # Start camera in a separate thread
-    camera_thread = threading.Thread(target=scan_qr_codes)
-    camera_thread.daemon = True
-    camera_thread.start()
-    
-    return jsonify({"status": "Camera started"})
+    try:
+        if camera_running:
+            return jsonify({"status": "Camera already running", "success": True})
+        
+        # Try to initialize camera first
+        camera = get_camera()
+        if not camera:
+            return jsonify({
+                "status": "Failed to initialize camera. Please check if camera is connected and try again.",
+                "success": False
+            })
+        
+        # Start camera in a separate thread
+        camera_thread = threading.Thread(target=scan_qr_codes)
+        camera_thread.daemon = True
+        camera_thread.start()
+        
+        return jsonify({"status": "Camera started successfully", "success": True})
+    except Exception as e:
+        print(f"Error starting camera: {e}")
+        return jsonify({
+            "status": f"Error starting camera: {str(e)}",
+            "success": False
+        })
 
 @app.route('/stop_camera')
 def stop_camera():
@@ -1692,8 +1896,25 @@ def stop_camera():
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route for the camera feed"""
-    return Response(generate_camera_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    try:
+        # Try to get camera first
+        camera = get_camera()
+        if not camera:
+            # If camera initialization fails, return an error image
+            error_img = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(error_img, "Camera not available", (160, 240),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            _, jpeg = cv2.imencode('.jpg', error_img)
+            return Response(b'--frame\r\n'
+                          b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n',
+                          mimetype='multipart/x-mixed-replace; boundary=frame')
+        
+        # If camera is available, return the video stream
+        return Response(generate_camera_frames(),
+                       mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        print(f"Error in video feed route: {e}")
+        return "Video feed error", 500
 
 @app.route('/qr_status')
 def qr_status():
@@ -2540,9 +2761,18 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
+            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
