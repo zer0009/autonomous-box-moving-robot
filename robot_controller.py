@@ -536,22 +536,31 @@ def process_qr_code(qr_data):
                     # Create a dummy box_info if database fails
                     box_info = (box_id, "pending", "source", "SHELF_A", "1", None, None, 1.0, 0, None)
             
+            # Look for custom pickup sequence first, fall back to default if not found
+            pickup_sequence = 'custom_pickup' if 'custom_pickup' in SEQUENCES else 'pick_and_store_back'
+            
             # Step 1: Pick up the box and move to back
             update_robot_state(status="picking", action=f"Picking up box: {box_id}")
-            execute_sequence('pick_and_store_back')
+            execute_sequence(pickup_sequence)
             
             # Determine which back position to use based on available slots
             # For now, using a simple round-robin approach
             back_position = (int(box_id) % 3) + 1 if box_id.isdigit() else 1
-            back_sequence = f'store_back_position_{back_position}'
+            
+            # Look for custom store sequence first, fall back to default if not found
+            custom_store_sequence = f'custom_store_{back_position}'
+            back_sequence = custom_store_sequence if custom_store_sequence in SEQUENCES else f'store_back_position_{back_position}'
             
             # Store the box at the selected back position
             update_robot_state(status="storing", action=f"Storing box at back position {back_position}")
             execute_sequence(back_sequence)
             
+            # Look for custom home sequence first, fall back to default if not found
+            home_sequence = 'custom_home' if 'custom_home' in SEQUENCES else 'return_to_home'
+            
             # Return arm to home position
             update_robot_state(status="homing", action="Returning to home position")
-            execute_sequence('return_to_home')
+            execute_sequence(home_sequence)
             
             # Add a small delay to ensure the arm is fully settled
             print("Waiting for arm to settle before starting navigation...")
@@ -590,7 +599,7 @@ def process_qr_code(qr_data):
             # Use floor markers for additional navigation reference
             if robot_state["status"] == "navigating":
                 adjust_navigation(qr_data, robot_state.get("target_shelf"))
-            
+        
         else:
             print(f"Unknown QR code format: {qr_data}")
             update_robot_state(error=f"Unknown QR code format: {qr_data}")
@@ -1145,20 +1154,28 @@ def complete_shelf_placement():
         shelf_letter = 'a'
     
     try:
+        # Look for custom pick sequence first, fall back to default if not found
+        custom_pick_sequence = f'custom_pick_back_{back_position}'
+        pick_sequence = custom_pick_sequence if custom_pick_sequence in SEQUENCES else f'pick_from_back_{back_position}'
+        
         # Pick up box from back position
         update_robot_state(
             status="retrieving",
             action=f"Retrieving box from back position {back_position}",
             nav_status="stopped"
         )
-        execute_sequence(f'pick_from_back_{back_position}')
+        execute_sequence(pick_sequence)
+        
+        # Look for custom placement sequence first, fall back to default if not found
+        custom_place_sequence = f'custom_place_shelf_{shelf_letter}'
+        place_sequence = custom_place_sequence if custom_place_sequence in SEQUENCES else f'place_on_shelf_{shelf_letter}'
         
         # Place on the correct shelf
         update_robot_state(
             status="placing",
             action=f"Placing box on shelf {shelf_letter.upper()}"
         )
-        execute_sequence(f'place_on_shelf_{shelf_letter}')
+        execute_sequence(place_sequence)
         
         # Reset state
         update_robot_state(
@@ -1387,6 +1404,7 @@ MAIN_HTML = """
         button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
         .mode-button { width: 200px; height: 60px; font-size: 18px; }
         .active-mode { background-color: #4CAF50; color: white; }
+        .help-button { background-color: #ffcc00; color: #333; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -1403,6 +1421,7 @@ MAIN_HTML = """
             <a href="/status"><button class="mode-button {% if mode == 'status' %}active-mode{% endif %}">Robot Status</button></a>
             <a href="/sequence_analysis"><button class="mode-button {% if mode == 'analysis' %}active-mode{% endif %}">Sequence Analysis</button></a>
             <a href="/debug_serial"><button class="mode-button {% if mode == 'debug' %}active-mode{% endif %}">Debug Serial</button></a>
+            <a href="/sequence_help"><button class="mode-button help-button">Custom Sequence Help</button></a>
         </div>
         
         <div class="current-mode">
@@ -2810,10 +2829,12 @@ def load_sequences_from_file():
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
             ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
+            ('Elbow -', 0.5),
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
-            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
@@ -3430,6 +3451,152 @@ def sequence_recorder():
         </script>
     """
     
+    return html
+
+@app.route('/sequence_help')
+def sequence_help_page():
+    """Page showing help information about creating custom sequences"""
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Custom Sequence Help</title>
+        <style>
+            body { font-family: Arial; text-align: left; margin: 20px; }
+            .container { max-width: 1000px; margin: 0 auto; }
+            .back-button { background-color: #f0f0f0; width: 150px; height: 40px; margin-bottom: 20px; }
+            h1, h2 { color: #333; }
+            .section { margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-radius: 8px; }
+            .important { color: #cc0000; font-weight: bold; }
+            pre { background-color: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Custom Sequence Help</h1>
+            <a href="/"><button class="back-button">Back to Main Menu</button></a>
+            
+            <div class="section">
+                <h2>Creating Custom Sequences</h2>
+                <p>
+                    The robot controller now supports custom sequences that can replace the default ones.
+                    You can create your own sequences with the Sequence Recorder and give them specific names
+                    to replace the default sequences used in automation.
+                </p>
+            </div>
+            
+            <div class="section">
+                <h2>Custom Sequence Names</h2>
+                <p class="important">
+                    To replace default sequences, use these specific names for your custom sequences:
+                </p>
+                <table>
+                    <tr>
+                        <th>Purpose</th>
+                        <th>Default Name</th>
+                        <th>Custom Name to Use</th>
+                    </tr>
+                    <tr>
+                        <td>Initial pickup sequence</td>
+                        <td>pick_and_store_back</td>
+                        <td>custom_pickup</td>
+                    </tr>
+                    <tr>
+                        <td>Store in back position 1</td>
+                        <td>store_back_position_1</td>
+                        <td>custom_store_1</td>
+                    </tr>
+                    <tr>
+                        <td>Store in back position 2</td>
+                        <td>store_back_position_2</td>
+                        <td>custom_store_2</td>
+                    </tr>
+                    <tr>
+                        <td>Store in back position 3</td>
+                        <td>store_back_position_3</td>
+                        <td>custom_store_3</td>
+                    </tr>
+                    <tr>
+                        <td>Return to home position</td>
+                        <td>return_to_home</td>
+                        <td>custom_home</td>
+                    </tr>
+                    <tr>
+                        <td>Pick from back position 1</td>
+                        <td>pick_from_back_1</td>
+                        <td>custom_pick_back_1</td>
+                    </tr>
+                    <tr>
+                        <td>Pick from back position 2</td>
+                        <td>pick_from_back_2</td>
+                        <td>custom_pick_back_2</td>
+                    </tr>
+                    <tr>
+                        <td>Pick from back position 3</td>
+                        <td>pick_from_back_3</td>
+                        <td>custom_pick_back_3</td>
+                    </tr>
+                    <tr>
+                        <td>Place on shelf A</td>
+                        <td>place_on_shelf_a</td>
+                        <td>custom_place_shelf_a</td>
+                    </tr>
+                    <tr>
+                        <td>Place on shelf B</td>
+                        <td>place_on_shelf_b</td>
+                        <td>custom_place_shelf_b</td>
+                    </tr>
+                    <tr>
+                        <td>Place on shelf C</td>
+                        <td>place_on_shelf_c</td>
+                        <td>custom_place_shelf_c</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>How It Works</h2>
+                <p>
+                    When the robot processes a QR code and needs to execute a sequence, it will:
+                </p>
+                <ol>
+                    <li>First look for a custom sequence with the appropriate name</li>
+                    <li>If the custom sequence exists, it will use that sequence</li>
+                    <li>If no custom sequence is found, it will fall back to the default sequence</li>
+                </ol>
+                <p>
+                    This allows you to create your own custom sequences while still maintaining compatibility
+                    with the default automation flow.
+                </p>
+            </div>
+            
+            <div class="section">
+                <h2>Steps to Create a Custom Sequence</h2>
+                <ol>
+                    <li>Go to the Sequence Recorder page</li>
+                    <li>Create your sequence by recording commands</li>
+                    <li>When saving, use one of the custom names from the table above</li>
+                    <li>Test your sequence using the "Test" button before using it in automation</li>
+                </ol>
+            </div>
+            
+            <div class="section">
+                <h2>Tips for Custom Sequences</h2>
+                <ul>
+                    <li>Make sure to start with "Enable Arm" and end with "Disable Arm" when appropriate</li>
+                    <li>Test sequences thoroughly before using them in production</li>
+                    <li>If a sequence doesn't work as expected, you can always delete it and the system will fall back to the default sequence</li>
+                    <li>Back up your sequences.json file regularly to avoid losing your custom sequences</li>
+                </ul>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
     return html
 
 if __name__ == '__main__':
