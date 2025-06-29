@@ -244,16 +244,28 @@ def get_camera():
             print(f"Error with existing camera: {e}")
             release_camera()
     
-    # Try different camera indices
-    for camera_index in [0, 1, 2]:
+    # List of possible camera devices to try
+    # On Raspberry Pi, USB cameras typically show up as /dev/video0, /dev/video1, etc.
+    camera_devices = [
+        '/dev/video0',
+        '/dev/video1',
+        '/dev/video2',
+        0,  # Also try numeric indices as fallback
+        1,
+        2
+    ]
+    
+    cam = None
+    for device in camera_devices:
         try:
-            print(f"Trying camera at index {camera_index}...")
-            cam = cv2.VideoCapture(camera_index)
+            print(f"Trying camera device: {device}")
+            cam = cv2.VideoCapture(device)
+            
             if not cam.isOpened():
-                print(f"Failed to open camera at index {camera_index}")
+                print(f"Failed to open camera at {device}")
                 continue
                 
-            print(f"Camera opened at index {camera_index}, testing connection...")
+            print(f"Camera opened at {device}, testing connection...")
             # Test multiple frames to ensure stable connection
             stable = True
             for i in range(3):
@@ -270,26 +282,59 @@ def get_camera():
                 camera = cam
                 # Try to set resolution, but don't fail if not supported
                 print("Setting camera resolution...")
-                camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                # Read actual resolution
-                actual_width = camera.get(cv2.CAP_PROP_FRAME_WIDTH)
-                actual_height = camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                print(f"Connected to camera at index {camera_index}")
-                print(f"Camera resolution: {actual_width}x{actual_height}")
+                
+                try:
+                    # First try to get the current resolution
+                    current_width = camera.get(cv2.CAP_PROP_FRAME_WIDTH)
+                    current_height = camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                    print(f"Current camera resolution: {current_width}x{current_height}")
+                    
+                    # Try to set to 640x480 if different
+                    if current_width != 640 or current_height != 480:
+                        print("Attempting to set resolution to 640x480...")
+                        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        
+                        # Verify the new resolution
+                        actual_width = camera.get(cv2.CAP_PROP_FRAME_WIDTH)
+                        actual_height = camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                        print(f"New camera resolution: {actual_width}x{actual_height}")
+                except Exception as e:
+                    print(f"Warning: Could not set camera resolution: {e}")
+                
+                # Try to set some additional properties for better performance
+                try:
+                    # Set autofocus off (if supported)
+                    camera.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                    # Set focus to infinity (if supported)
+                    camera.set(cv2.CAP_PROP_FOCUS, 0)
+                    # Try to disable auto exposure (if supported)
+                    camera.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+                except Exception as e:
+                    print(f"Note: Some camera properties not supported: {e}")
+                
+                print(f"Successfully connected to camera at {device}")
                 return camera
             else:
-                print(f"Camera at index {camera_index} connection not stable")
-                cam.release()
-        except Exception as e:
-            print(f"Error with camera at index {camera_index}: {e}")
-            if cam:
+                print(f"Camera at {device} connection not stable")
                 try:
+                    if cam:
+                        cam.release()
+                except Exception as e:
+                    print(f"Warning: Error releasing camera: {e}")
+        except Exception as e:
+            print(f"Error with camera at {device}: {e}")
+            try:
+                if cam:
                     cam.release()
-                except:
-                    pass
+            except Exception as release_error:
+                print(f"Warning: Error releasing camera: {release_error}")
     
-    print("Error: Could not find a working camera")
+    print("Error: Could not find a working camera. Please check USB connection and permissions.")
+    print("On Raspberry Pi, you may need to:")
+    print("1. Check if the camera is properly connected (try unplugging and plugging back in)")
+    print("2. Verify camera permissions (ls -l /dev/video*)")
+    print("3. Add your user to the 'video' group (sudo usermod -a -G video $USER)")
     camera = None
     return camera
 
@@ -2768,7 +2813,6 @@ def load_sequences_from_file():
             # Grip box
             ('Gripper Close', 1.0),  # Grip box
             # Return elbow - exactly 30 steps
-            ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
             ('Elbow +', 0.5),
